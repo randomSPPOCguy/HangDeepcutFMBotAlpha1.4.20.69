@@ -1,0 +1,16 @@
+{
+  "name": "deepcuts-bot",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node scripts/preflight.mjs && node bot.mjs",
+    "start:raw": "node bot.mjs"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  }
+}

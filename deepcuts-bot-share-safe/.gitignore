@@ -1,0 +1,13 @@
+# secrets
+.env
+.env.*
+
+# runtime data
+bot-state.json
+bot-state.json.tmp
+system-events.log
+
+# OS/editor
+.DS_Store
+Thumbs.db
+node_modules/

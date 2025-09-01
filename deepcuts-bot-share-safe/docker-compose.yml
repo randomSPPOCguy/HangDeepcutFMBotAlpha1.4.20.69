@@ -1,0 +1,10 @@
+services:
+  bot:
+    build: .
+    env_file: .env
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+    # uncomment to pin timezone inside container, if helpful:
+    # environment:
+    #   - TZ=Etc/UTC
