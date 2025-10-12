@@ -1,0 +1,24 @@
+{
+  "name": "deepcut-bot",
+  "version": "1.0.0",
+  "description": "Deepcut.live AI Bot with music features",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "node --watch bot.js"
+  },
+  "dependencies": {
+    "axios": "^1.12.2",
+    "dotenv": "^16.3.1",
+    "ws": "^8.14.2"
+  },
+  "keywords": [
+    "deepcut",
+    "bot",
+    "music",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+
