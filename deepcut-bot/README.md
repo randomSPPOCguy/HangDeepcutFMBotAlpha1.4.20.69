@@ -1,6 +1,21 @@
 # Deepcut.live Bot
 
-This is the working directory for the Deepcut.live bot.
+AI-powered music bot for **Deepcut.live** platform.
+
+## ⚠️ Important Disclaimer
+
+**This bot is specifically built for the "All Music Mix" room on Deepcut.live.**
+
+- ✅ Designed for multi-genre music rooms
+- ✅ Features YouTube restriction checking
+- ✅ Ammy PM permission system integration
+- ✅ Album art and Wikipedia summaries
+- ✅ Seasonal music filtering
+- ⚠️ May need adjustments for other rooms or platforms
+
+**Use in other rooms at your own discretion.** Some features (like Ammy PM system) are room-specific.
+
+---
 
 ## Running the Bot
 
