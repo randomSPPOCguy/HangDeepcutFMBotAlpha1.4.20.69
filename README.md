@@ -2,6 +2,20 @@
 
 Two AI-powered music bots for different platforms, fully self-contained and ready to run.
 
+## ⚖️ License & Usage
+
+**📜 Non-Commercial Open Source**
+
+- ✅ **FREE to use** for personal, educational, and non-profit purposes
+- ✅ **FREE to modify** and improve
+- ✅ **FREE to share** with others
+- ❌ **NOT for commercial use** - No selling, monetizing, or paid services
+- 📋 **Attribution required** - Give credit to the original author
+
+**See [LICENSE](LICENSE) for full terms.**
+
+> **TL;DR:** Use it, learn from it, improve it - just don't make money from it! 🎵
+
 ---
 
 ## 📁 Project Structure
