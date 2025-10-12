@@ -1633,6 +1633,12 @@ class DeepcutAIBot extends EventEmitter {
     
     // PUBLIC DOT COMMANDS  
     this.commands.set('.commands', (text, senderId, senderName) => this.handleCommandsListCommand(senderId, senderName));
+    this.commands.set('/gitlink', (text, senderId, senderName) => this.handleGitLinkCommand(senderId, senderName));
+    this.commands.set('/github', (text, senderId, senderName) => this.handleGitLinkCommand(senderId, senderName));
+    this.commands.set('/repo', (text, senderId, senderName) => this.handleGitLinkCommand(senderId, senderName));
+    this.commands.set('/ty', (text, senderId, senderName) => this.handleThanksCommand(senderId, senderName));
+    this.commands.set('/thanks', (text, senderId, senderName) => this.handleThanksCommand(senderId, senderName));
+    this.commands.set('/credits', (text, senderId, senderName) => this.handleThanksCommand(senderId, senderName));
     this.commands.set('.stats', (text, senderId, senderName) => this.handleStatsCommand(text, senderId, senderName));
     this.commands.set('.firstplayed', (text, senderId, senderName) => this.handleFirstPlayedCommand(text, senderId, senderName));
     this.commands.set('.hopup', () => this.handleHopUpCommand());
@@ -8620,6 +8626,8 @@ ${provider === 'openai' ? '📊 Model: gpt-4o-mini' : ''}`;
 /info - Artist information
 /song - Current song info
 /album - Album information
+/gitlink - View bot source code on GitHub
+/ty - Credits and thank you
 
 **Dot Commands:**
 .commands - Show this list
@@ -8631,6 +8639,26 @@ ${provider === 'openai' ? '📊 Model: gpt-4o-mini' : ''}`;
 
     this.sendMainChat(commandsList);
     this.log(`📋 Commands list shown to ${senderName}`);
+  }
+
+  async handleGitLinkCommand(senderId, senderName) {
+    const message = `🔗 **Bot Source Code**
+
+📦 GitHub: https://github.com/randomSPPOCguy/HangDeepcutFMBotAlpha1.4.20.69
+⚖️ License: Non-Commercial Open Source
+✅ Free to use, modify, and share - just don't monetize it!
+
+🎧 This is the Deepcut.live bot - specifically built for "All Music Mix" room`;
+
+    this.sendMainChat(message);
+    this.log(`🔗 Git link shown to ${senderName}`);
+  }
+
+  async handleThanksCommand(senderId, senderName) {
+    const message = `💙 Thank you to Jodrell, noiz, Kai the Husky, butter, and the music sharing community for inspiring me to build this project`;
+
+    this.sendMainChat(message);
+    this.log(`💙 Thanks message shown to ${senderName}`);
   }
 
   async handleStatsCommand(text, senderId, senderName) {

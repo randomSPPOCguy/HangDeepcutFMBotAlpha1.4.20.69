@@ -47,6 +47,14 @@ class CommandHandler {
       case "/help":
       case "/?":
         await this.handleHelp(); return true;
+      case "/gitlink":
+      case "/github":
+      case "/repo":
+        await this.handleGitLink(); return true;
+      case "/ty":
+      case "/thanks":
+      case "/credits":
+        await this.handleThanks(); return true;
       default:
         this.logger?.debug?.(`Unknown command: ${cmd}`);
         return false;
@@ -66,8 +74,29 @@ class CommandHandler {
       "- /poker [amount] — Play a hand vs bot",
       "- /weather <location> — Quick weather",
       "- /artists — Show curated artist samples",
+      "- /gitlink — View bot source code on GitHub",
+      "- /ty — Credits and thank you",
       "- /help — This help",
     ].join("\n");
+    await this.send(msg);
+  }
+
+  /** @private */
+  async handleGitLink() {
+    const emoji = this.bot?.decor?.getRandomEmoji?.() || "🔗";
+    const msg = [
+      `${emoji} **Bot Source Code**`,
+      "📦 GitHub: https://github.com/randomSPPOCguy/HangDeepcutFMBotAlpha1.4.20.69",
+      "⚖️ License: Non-Commercial Open Source",
+      "✅ Free to use, modify, and share - just don't monetize it!",
+    ].join("\n");
+    await this.send(msg);
+  }
+
+  /** @private */
+  async handleThanks() {
+    const emoji = this.bot?.decor?.getRandomEmoji?.() || "💙";
+    const msg = `${emoji} Thank you to Jodrell, noiz, Kai the Husky, butter, and the music sharing community for inspiring me to build this project`;
     await this.send(msg);
   }
 
