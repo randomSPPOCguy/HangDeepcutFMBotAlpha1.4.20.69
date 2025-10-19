@@ -118,7 +118,8 @@ class CometChatManager {
             const text = message.data?.text || message.text || '';
             const messageTime = message.sentAt ? new Date(message.sentAt * 1000).getTime() : Date.now();
             const isRecent = messageTime > this.pollingStartTime;
-            const messageKey = `${message.id}_${message.sender}_${text}`;
+            // Use ONLY message ID for deduplication (message.id is unique)
+            const messageKey = `${message.id}`;
             
             this.logger.debug(`📋 Message check: text="${text}", isRecent=${isRecent}, alreadyProcessed=${this.processedMessages.has(messageKey)}`);
             
