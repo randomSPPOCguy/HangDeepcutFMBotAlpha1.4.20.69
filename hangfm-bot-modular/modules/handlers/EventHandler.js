@@ -46,13 +46,25 @@ class EventHandler {
         this.logger?.debug?.(`[cmd] not handled by CommandHandler: ${text}`);
       }
 
-      // Optional: AI on mention
+      // Optional: AI on keyword triggers
       if (this.bot?.ai?.isEnabled && this.bot.ai.isEnabled()) {
-        const name = this.bot?.config?.botName || '';
-        const mentioned = name && new RegExp(`\\b${name.replace(/[-/\\^$*+?.()|[\\]{}]/g, '\\\\$&')}\\b`, 'i').test(text);
-        if (mentioned && this.bot?.spam?.canUseAI?.(userId)) {
-          const reply = await this.bot.ai.generateReply(text, { userId, userName });
-          if (reply) await this.bot.say?.(this.roomId, reply);
+        // Check for keyword triggers (bot, b0t, etc.)
+        const keywords = this.bot?.config?.keywordTriggers || ['bot', 'b0t', 'bot2', 'b0t2', '@bot2'];
+        const textLower = text.toLowerCase();
+        const hasKeyword = keywords.some(kw => textLower.includes(kw.toLowerCase()));
+        
+        if (hasKeyword && userId !== this.bot?.config?.userId && this.bot?.spam?.canUseAI?.(userId)) {
+          this.logger?.log?.(`🎯 AI keyword detected: ${text}`);
+          
+          // Get current song info from state
+          const currentSong = this.bot?.socket?.state?.room?.currentSong;
+          const roomState = this.bot?.socket?.state;
+          
+          const reply = await this.bot.ai.generateResponse(text, userId, userName, currentSong, roomState);
+          if (reply) {
+            await this.bot?.chat?.sendMessage?.(this.roomId, reply);
+            this.logger?.log?.(`🤖 AI response: ${reply}`);
+          }
           this.bot.spam?.recordAIUsage?.(userId);
           return;
         }

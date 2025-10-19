@@ -23,6 +23,21 @@ node hangfm-bot-modular\hang-fm-bot.js
 | `/rps rock` | Play rock-paper-scissors |
 | `/8ball Will this work?` | Ask the magic 8-ball |
 
+## 🤖 AI Features (ENABLED)
+
+The bot has **AI-powered chat** using Gemini (or OpenAI):
+
+**Trigger AI by saying:**
+- `hey bot, what's playing?`
+- `bot tell me about this artist`
+- `@bot2 what do you think of this song?`
+
+**Keywords that trigger AI:**
+`bot`, `b0t`, `bot2`, `b0t2`, `@bot2`
+
+**AI Provider:** Gemini (set in `hang-fm-config.env`)
+- Can switch to OpenAI by changing `AI_PROVIDER=openai`
+
 ## 👀 What to Look For
 
 ### ✅ GOOD - Bot is working:
