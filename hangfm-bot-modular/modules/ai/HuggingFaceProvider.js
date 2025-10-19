@@ -20,34 +20,55 @@ class HuggingFaceProvider {
     }
 
     try {
-      const response = await this._callModel(this.model, prompt);
+      const response = await this._callModel(this.model, prompt, context);
       if (response) return response;
       
       // Try fallback model
       this.logger.log(`🔄 Trying HuggingFace fallback model: ${this.fallbackModel}`);
-      return await this._callModel(this.fallbackModel, prompt);
+      return await this._callModel(this.fallbackModel, prompt, context);
     } catch (error) {
       this.logger.error(`HuggingFace error: ${error.message}`);
       return null;
     }
   }
 
-  async _callModel(model, prompt) {
+  async _callModel(model, prompt, context = {}) {
     try {
+      // Build system instructions with mood awareness
+      const moodContext = context.mood ? `Current user mood: ${context.mood}. ` : '';
+      const interactionContext = context.interactions > 0 ? `You've talked to this user ${context.interactions} times before. ` : '';
+      
+      const systemInstructions = `You are a chill, sarcastic music bot. ${moodContext}${interactionContext}You understand pop culture references and respond naturally. NEVER explain your personality or say 'I'm here to help'. Just BE sarcastic. Match user energy - joke back if joking, be snarky if rude. For music facts: use only metadata from the prompt. For everything else: be natural and get references. NEVER give one-word responses. NEVER ask questions. Give 2-3 sentences.`;
+      
+      // Build messages array with conversation history
+      const messages = [
+        {
+          role: "system",
+          content: systemInstructions
+        }
+      ];
+      
+      // Add conversation history if available
+      if (context.conversationHistory && context.conversationHistory.length > 0) {
+        for (const msg of context.conversationHistory) {
+          messages.push({
+            role: msg.role,
+            content: msg.content
+          });
+        }
+      }
+      
+      // Add current prompt
+      messages.push({
+        role: "user",
+        content: prompt
+      });
+      
       const response = await axios.post(
         'https://router.huggingface.co/v1/chat/completions',
         {
           model: model,
-          messages: [
-            {
-              role: "system",
-              content: "You are a chill, sarcastic music bot. You understand pop culture references and respond naturally. NEVER explain your personality or say 'I'm here to help'. Just BE sarcastic. Match user energy - joke back if joking, be snarky if rude. For music facts: use only metadata from the prompt. For everything else: be natural and get references. NEVER give one-word responses. NEVER ask questions. Give 2-3 sentences."
-            },
-            {
-              role: "user",
-              content: prompt
-            }
-          ],
+          messages: messages,
           max_tokens: 200,
           temperature: 0.7,
           stream: false

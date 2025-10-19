@@ -82,19 +82,38 @@ User "${userName}" said: "${message}"
 
 Response:`;
 
-      // Try providers
+      // Get conversation history for context
+      const conversation = this.getUserConversation(userId);
+      const conversationHistory = conversation.messages;
+      
+      // Build context object with mood and memory
+      const context = {
+        sentiment: sentiment.sentiment,
+        mood: sentiment.mood,
+        moodHistory: sentiment.moodHistory,
+        conversationHistory: conversationHistory,
+        interactions: sentiment.interactions
+      };
+      
+      // Try providers with conversation context
       let response = null;
       
       if (this.currentProvider === 'gemini') {
-        response = await this.providers.get('gemini').generate(prompt);
+        response = await this.providers.get('gemini').generate(prompt, context);
       } else if (this.currentProvider === 'openai') {
-        response = await this.providers.get('openai').generate(prompt);
+        response = await this.providers.get('openai').generate(prompt, context);
       } else if (this.currentProvider === 'huggingface') {
-        response = await this.providers.get('huggingface').generate(prompt);
+        response = await this.providers.get('huggingface').generate(prompt, context);
       } else if (this.currentProvider === 'auto') {
-        response = await this.providers.get('gemini').generate(prompt);
-        if (!response) response = await this.providers.get('openai').generate(prompt);
-        if (!response) response = await this.providers.get('huggingface').generate(prompt);
+        response = await this.providers.get('gemini').generate(prompt, context);
+        if (!response) response = await this.providers.get('openai').generate(prompt, context);
+        if (!response) response = await this.providers.get('huggingface').generate(prompt, context);
+      }
+      
+      // Add user message and bot response to conversation history
+      if (response) {
+        this.addToConversation(userId, 'user', message);
+        this.addToConversation(userId, 'assistant', response);
       }
       
       if (response && response.length > this.responseLengthLimit) {
@@ -159,29 +178,99 @@ Response:`;
   }
 
   updateUserSentiment(userId, message) {
-    const current = this.userSentiment.get(userId) || { sentiment: 'neutral', interactions: 0 };
+    const current = this.userSentiment.get(userId) || { 
+      sentiment: 'neutral', 
+      interactions: 0,
+      lastInteraction: Date.now(),
+      mood: 'neutral', // Current mood state
+      moodHistory: [] // Track mood changes over time
+    };
     
     const messageLower = message.toLowerCase();
     
-    // Check sentiment
-    const negativeWords = ['stupid', 'dumb', 'suck', 'hate', 'fuck you', 'asshole', 'garbage', 'trash'];
-    const positiveWords = ['thanks', 'thank you', 'help', 'info', 'tell me', 'what is', 'good', 'cool'];
+    // Check sentiment with expanded word lists
+    const negativeWords = ['stupid', 'dumb', 'suck', 'hate', 'fuck you', 'asshole', 'garbage', 'trash', 'shut up', 'annoying', 'useless'];
+    const positiveWords = ['thanks', 'thank you', 'help', 'info', 'tell me', 'what is', 'good', 'cool', 'awesome', 'love', 'great', 'nice'];
     
     const hasNegative = negativeWords.some(word => messageLower.includes(word));
     const hasPositive = positiveWords.some(word => messageLower.includes(word));
     
+    // Determine new mood
+    let newMood = current.mood;
     if (hasNegative && !hasPositive) {
+      newMood = 'negative';
       current.sentiment = 'negative';
     } else if (hasPositive && !hasNegative) {
+      newMood = 'positive';
       current.sentiment = 'positive';
     } else if (current.interactions === 0) {
+      newMood = 'neutral';
       current.sentiment = 'neutral';
     }
     
+    // Track mood changes over time (keep last 10)
+    if (newMood !== current.mood) {
+      current.moodHistory.push({
+        mood: newMood,
+        timestamp: Date.now(),
+        trigger: message.substring(0, 50)
+      });
+      if (current.moodHistory.length > 10) {
+        current.moodHistory.shift();
+      }
+      current.mood = newMood;
+    }
+    
     current.interactions++;
+    current.lastInteraction = Date.now();
     this.userSentiment.set(userId, current);
     
     return current;
+  }
+
+  // Get or create conversation memory for user
+  getUserConversation(userId) {
+    if (!this.userConversations.has(userId)) {
+      this.userConversations.set(userId, {
+        messages: [],
+        startedAt: Date.now(),
+        lastMessage: Date.now()
+      });
+    }
+    return this.userConversations.get(userId);
+  }
+
+  // Add message to user's conversation history
+  addToConversation(userId, role, content) {
+    const conversation = this.getUserConversation(userId);
+    conversation.messages.push({
+      role, // 'user' or 'assistant'
+      content,
+      timestamp: Date.now()
+    });
+    
+    // Keep only last 10 messages (5 exchanges)
+    if (conversation.messages.length > 10) {
+      conversation.messages.shift();
+    }
+    
+    conversation.lastMessage = Date.now();
+    
+    // Clean up old conversations (older than 1 hour)
+    this.cleanupOldConversations();
+  }
+
+  // Remove conversations older than 1 hour
+  cleanupOldConversations() {
+    const now = Date.now();
+    const maxAge = 60 * 60 * 1000; // 1 hour
+    
+    for (const [userId, conv] of this.userConversations.entries()) {
+      if (now - conv.lastMessage > maxAge) {
+        this.userConversations.delete(userId);
+        this.logger.debug(`🗑️  Cleaned up old conversation for user ${userId}`);
+      }
+    }
   }
 
   switchProvider(providerName) {

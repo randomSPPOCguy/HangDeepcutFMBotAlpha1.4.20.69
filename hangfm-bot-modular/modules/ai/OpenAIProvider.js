@@ -19,20 +19,41 @@ class OpenAIProvider {
     }
 
     try {
+      // Build system instructions with mood awareness
+      const moodContext = context.mood ? `Current user mood: ${context.mood}. ` : '';
+      const interactionContext = context.interactions > 0 ? `You've talked to this user ${context.interactions} times before. ` : '';
+      
+      const systemInstructions = `You are a chill, sarcastic music bot. ${moodContext}${interactionContext}You understand pop culture references and respond naturally. NEVER explain your personality or say 'I'm here to help'. Just BE sarcastic. Match user energy - joke back if joking, be snarky if rude. For music facts: use only metadata from the prompt. For everything else: be natural and get references. NEVER give one-word responses. NEVER ask questions. Give 2-3 sentences.`;
+      
+      // Build messages array with conversation history
+      const messages = [
+        {
+          role: 'system',
+          content: systemInstructions
+        }
+      ];
+      
+      // Add conversation history if available
+      if (context.conversationHistory && context.conversationHistory.length > 0) {
+        for (const msg of context.conversationHistory) {
+          messages.push({
+            role: msg.role,
+            content: msg.content
+          });
+        }
+      }
+      
+      // Add current prompt
+      messages.push({
+        role: 'user',
+        content: prompt
+      });
+      
       const response = await axios.post(
         'https://api.openai.com/v1/chat/completions',
         {
           model: this.model,
-          messages: [
-            {
-              role: 'system',
-              content: "You are a chill, sarcastic music bot. You understand pop culture references and respond naturally. NEVER explain your personality or say 'I'm here to help'. Just BE sarcastic. Match user energy - joke back if joking, be snarky if rude. For music facts: use only metadata from the prompt. For everything else: be natural and get references. NEVER give one-word responses. NEVER ask questions. Give 2-3 sentences."
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
+          messages: messages,
           max_tokens: 300,
           temperature: 0.8
         },

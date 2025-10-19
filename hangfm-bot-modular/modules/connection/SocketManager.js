@@ -64,11 +64,20 @@ class SocketManager {
       this.state = connection.state;
       this.isConnected = true;
       
+      // Wait a moment for state to fully populate
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Try to get more complete state
+      if (this.socket && typeof this.socket.getState === 'function') {
+        const fullState = this.socket.getState();
+        if (fullState) this.state = fullState;
+      }
+      
       this.logger.log(`✅ Connected to Hang.fm`);
-      this.logger.log(`📍 Room: ${this.state.room?.name || 'Unknown Room'}`);
-      this.logger.log(`🎭 Bot: ${this.state.selfProfile?.name || 'Unknown'}`);
-      this.logger.log(`👥 Users in room: ${this.state.users?.length || 0}`);
-      this.logger.log(`🎧 DJs on stage: ${this.state.djs?.length || 0}`);
+      this.logger.log(`📍 Room: ${this.state.room?.name || this.state.room?.metadata?.name || 'Unknown Room'}`);
+      this.logger.log(`🎭 Bot: ${this.state.selfProfile?.name || this.state.self?.name || 'BOT'}`);
+      this.logger.log(`👥 Users in room: ${Object.keys(this.state.users || {}).length || this.state.room?.userCount || 0}`);
+      this.logger.log(`🎧 DJs on stage: ${(this.state.room?.djs || []).length || 0}`);
       
       // DEBUG: Test that socket is working
       this.logger.debug(`🔍 Socket connection state: ${this.socket?.state}`);

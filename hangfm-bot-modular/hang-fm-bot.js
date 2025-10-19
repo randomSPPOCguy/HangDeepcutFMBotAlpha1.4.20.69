@@ -223,6 +223,14 @@ const AIManager = require('./modules/ai/AIManager');
           
           // Log and handle specific events
           switch (message.name) {
+            case 'updatedUserData':
+              // This populates allUserData after joining - critical for state
+              log.log(`📊 User data populated - room state now complete`);
+              if (socket.state?.allUserData) {
+                const userCount = Object.keys(socket.state.allUserData).length;
+                log.log(`👥 Room has ${userCount} users`);
+              }
+              break;
             case 'userJoined':
               const joinedUser = message.statePatch?.[0]?.value?.userProfile?.name || 'Unknown';
               log.log(`👋 ${joinedUser} joined the room`);

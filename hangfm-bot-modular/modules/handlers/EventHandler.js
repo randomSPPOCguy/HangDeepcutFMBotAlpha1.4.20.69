@@ -56,16 +56,43 @@ class EventHandler {
         if (hasKeyword && userId !== this.bot?.config?.userId && this.bot?.spam?.canUseAI?.(userId)) {
           this.logger?.log?.(`🎯 AI keyword detected: ${text}`);
           
+          // CONTENT FILTERING - Block links before AI
+          const linkRegex = /https?:\/\/\S+/i;
+          if (linkRegex.test(text)) {
+            this.logger?.warn?.(`🚫 Blocked AI trigger with link: ${text.substring(0, 50)}`);
+            await this.bot?.chat?.sendMessage?.(this.roomId, '🚫 Links are not allowed in AI prompts');
+            return;
+          }
+          
+          // CONTENT FILTERING - Check for inappropriate content
+          if (this.bot?.filter?.isInappropriate) {
+            const filtered = await this.bot.filter.isInappropriate(text);
+            if (filtered) {
+              this.logger?.warn?.(`🚫 Blocked inappropriate AI trigger: ${text.substring(0, 50)}`);
+              return; // Silently ignore
+            }
+          }
+          
           // Get current song info from state
-          const currentSong = this.bot?.socket?.state?.room?.currentSong;
+          const currentSong = this.bot?.socket?.state?.room?.nowPlaying || this.bot?.socket?.state?.room?.currentSong;
           const roomState = this.bot?.socket?.state;
           
-          const reply = await this.bot.ai.generateResponse(text, userId, userName, currentSong, roomState);
-          if (reply) {
-            await this.bot?.chat?.sendMessage?.(this.roomId, reply);
-            this.logger?.log?.(`🤖 AI response: ${reply}`);
+          try {
+            // Generate AI response with error handling
+            const reply = await this.bot.ai.generateResponse(text, userId, userName, currentSong, roomState);
+            
+            if (reply && reply.trim()) {
+              await this.bot?.chat?.sendMessage?.(this.roomId, reply);
+              this.logger?.log?.(`🤖 AI response: ${reply}`);
+              this.bot.spam?.recordAIUsage?.(userId);
+            } else {
+              this.logger?.warn?.('AI returned empty response');
+            }
+          } catch (aiError) {
+            this.logger?.error?.(`AI generation failed: ${aiError.message}`);
+            // Send friendly fallback
+            await this.bot?.chat?.sendMessage?.(this.roomId, 'Sorry, I couldn\'t process that right now.');
           }
-          this.bot.spam?.recordAIUsage?.(userId);
           return;
         }
       }
