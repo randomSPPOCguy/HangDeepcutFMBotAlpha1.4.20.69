@@ -12,9 +12,10 @@ class SocketManager {
     this.isConnected = false;
     this.eventHandlers = new Map(); // Store event handlers to propagate to inner socket
     
-    // Initialize socket immediately
-    this.logger.log('📡 Creating SocketClient...');
-    this.socket = new SocketClient('https://socket.prod.tt.fm');
+    // Initialize socket with the configured URL
+    const socketUrl = this.config.url || this.config.websocketUrl || 'https://socket.prod.tt.fm';
+    this.logger.log(`📡 Creating SocketClient (${socketUrl})...`);
+    this.socket = new SocketClient(socketUrl);
     this.logger.log('✅ SocketClient created');
     
     // Propagate ALL events from inner socket to this manager
@@ -35,7 +36,10 @@ class SocketManager {
     try {
       this.logger.log('🔌 Connecting to Hang.fm...');
       
-      if (!this.config.botUserToken) {
+      // Support both "token" and "botUserToken" property names
+      const botToken = this.config.token || this.config.botUserToken;
+      
+      if (!botToken) {
         throw new Error('BOT_USER_TOKEN is required');
       }
       
@@ -47,7 +51,7 @@ class SocketManager {
       this.logger.log(`📍 Joining room: ${this.config.roomId}`);
       
       // Add timeout to prevent hanging
-      const connectionPromise = this.socket.joinRoom(this.config.botUserToken, {
+      const connectionPromise = this.socket.joinRoom(botToken, {
         roomUuid: this.config.roomId
       });
       

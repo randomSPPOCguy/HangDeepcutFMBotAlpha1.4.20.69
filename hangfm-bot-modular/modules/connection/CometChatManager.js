@@ -71,13 +71,7 @@ class CometChatManager {
   startPolling() {
     if (this.pollingInterval) return; // Already polling
     
-    // Wait for group join before starting to poll
-    if (!this.groupJoined) {
-      this.logger.debug('⏳ Waiting for group join before starting polling...');
-      setTimeout(() => this.startPolling(), 2000);
-      return;
-    }
-    
+    // Start polling even if group join failed - we can still read messages
     this.logger.log('🔄 Starting CometChat HTTP polling for messages...');
     
     // Poll every 2 seconds for new messages

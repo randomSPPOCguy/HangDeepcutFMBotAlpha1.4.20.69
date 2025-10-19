@@ -35,6 +35,8 @@ class Config {
     
     // Bot User Token & IDs
     this.botUserToken = process.env.BOT_USER_TOKEN;
+    this.botToken = this.botUserToken; // Alias for compatibility
+    this.websocketUrl = process.env.WEBSOCKET_URL || 'https://socket.prod.tt.fm';
     this.cometChatAuth = process.env.COMETCHAT_AUTH;
     this.cometChatApiKey = process.env.COMETCHAT_API_KEY; // App ID in this project
     // Alias for modules that expect 'cometChatAppId'

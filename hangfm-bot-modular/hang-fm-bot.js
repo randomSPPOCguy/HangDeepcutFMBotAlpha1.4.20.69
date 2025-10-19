@@ -174,13 +174,15 @@ const AIManager = require('./modules/ai/AIManager');
     log.info('Connecting socket…');
     try {
       await socket.connect();
-      if (socket.isConnected && socket.isConnected()) {
-        log.info('Socket connected.');
+      if (socket.isConnected) {
+        log.info('✅ Socket connected - bot should now be visible in room');
       } else {
-        log.warn('Socket not connected; will rely on HTTP polling if available.');
+        log.warn('⚠️ Socket not connected; will rely on HTTP polling if available.');
       }
     } catch (e) {
-      log.warn('Socket failed to connect; bot will fall back to HTTP polling.', e?.message || e);
+      log.error(`❌ Socket failed to connect: ${e?.message || e}`);
+      log.error(`   Stack: ${e?.stack}`);
+      log.warn('Bot will fall back to HTTP polling.');
     }
 
     // Wire up event handlers
@@ -197,6 +199,18 @@ const AIManager = require('./modules/ai/AIManager');
 
     // Handle socket events
     if (socket.on) {
+      // Connection monitoring
+      socket.on('connected', () => {
+        log.info('🔗 Socket connection established');
+      });
+      socket.on('disconnected', () => {
+        log.error('🔌 Socket DISCONNECTED - bot is no longer visible!');
+      });
+      socket.on('error', (err) => {
+        log.error(`❌ Socket error: ${err?.message || err}`);
+      });
+      
+      // Room events
       socket.on('userJoined', (data) => events.handleUserJoined?.(data));
       socket.on('userLeft', (data) => events.handleUserLeft?.(data));
       socket.on('djAdded', (data) => events.handleDJAdded?.(data));

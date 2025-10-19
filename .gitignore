@@ -27,3 +27,8 @@ Thumbs.db
 *.tmp
 *.temp
 .cursor/
+AppData/
+.pm2/
+.gitconfig
+bot-output.txt
+bot-debug.log
