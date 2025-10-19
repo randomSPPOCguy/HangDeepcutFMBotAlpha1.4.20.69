@@ -218,21 +218,27 @@ const ContentFilter = require('./modules/features/ContentFilter');
       // Stateful messages (with state patches)
       socket.on('statefulMessage', (message) => {
         try {
-          // Apply state patch to keep state in sync
+          // Apply state patch to keep state in sync with error handling
           if (message.statePatch && socket.state) {
-            const result = applyPatch(socket.state, message.statePatch, true, false);
-            socket.updateState(result.newDocument);
+            try {
+              const result = applyPatch(socket.state, message.statePatch, true, false);
+              socket.updateState(result.newDocument);
+            } catch (patchError) {
+              logger.warn(`[patch] failed for ${message.name}, resyncing: ${patchError.message}`);
+              // Resync from socket if patch fails
+              if (socket.socket && typeof socket.socket.getState === 'function') {
+                const freshState = socket.socket.getState();
+                if (freshState) socket.updateState(freshState);
+              }
+            }
           }
           
           // Log and handle specific events
           switch (message.name) {
             case 'updatedUserData':
               // This populates allUserData after joining - critical for state
-              log.log(`📊 User data populated - room state now complete`);
-              if (socket.state?.allUserData) {
-                const userCount = Object.keys(socket.state.allUserData).length;
-                log.log(`👥 Room has ${userCount} users`);
-              }
+              // Readiness check happens automatically in updateState()
+              logger.debug(`📊 updatedUserData received - checking readiness...`);
               break;
             case 'userJoined':
               const joinedUser = message.statePatch?.[0]?.value?.userProfile?.name || 'Unknown';

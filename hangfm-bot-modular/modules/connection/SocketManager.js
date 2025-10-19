@@ -10,6 +10,7 @@ class SocketManager {
     this.socket = null;
     this.state = null;
     this.isConnected = false;
+    this._ready = false; // Readiness gate (room + users populated)
     this.eventHandlers = new Map(); // Store event handlers to propagate to inner socket
     
     // Initialize socket with the configured URL
@@ -60,20 +61,8 @@ class SocketManager {
       this.state = connection.state;
       this.isConnected = true;
       
-      // Wait a moment for state to fully populate
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Try to get more complete state
-      if (this.socket && typeof this.socket.getState === 'function') {
-        const fullState = this.socket.getState();
-        if (fullState) this.state = fullState;
-      }
-      
       this.logger.log(`✅ Connected to Hang.fm`);
-      this.logger.log(`📍 Room: ${this.state.room?.name || this.state.room?.metadata?.name || 'Unknown Room'}`);
-      this.logger.log(`🎭 Bot: ${this.state.selfProfile?.name || this.state.self?.name || 'BOT'}`);
-      this.logger.log(`👥 Users in room: ${Object.keys(this.state.users || {}).length || this.state.room?.userCount || 0}`);
-      this.logger.log(`🎧 DJs on stage: ${(this.state.room?.djs || []).length || 0}`);
+      this.logger.log(`⏳ Waiting for room state to populate (updatedUserData event)...`);
       
       // DEBUG: Test that socket is working
       this.logger.debug(`🔍 Socket connection state: ${this.socket?.state}`);
@@ -179,6 +168,29 @@ class SocketManager {
 
   updateState(newState) {
     this.state = newState;
+    this._maybeMarkReady();
+  }
+
+  _maybeMarkReady() {
+    if (this._ready) return; // Already ready
+    
+    const s = this.getState();
+    const name = s?.room?.name || s?.room?.metadata?.name;
+    const users = (s?.allUserData && Object.keys(s.allUserData).length)
+               || (s?.room?.usersInRoomUuids && s.room.usersInRoomUuids.length)
+               || (s?.room?.numberOfUsersInRoom || 0);
+    
+    if (name && users > 0) {
+      this._ready = true;
+      this.logger.log(`📍 Room ready: ${name}`);
+      this.logger.log(`👥 Users in room: ${users}`);
+      this.logger.log(`🎭 Bot: ${s.selfProfile?.name || s.self?.name || 'BOT'}`);
+      this.logger.log(`🎧 DJs on stage: ${(s.room?.djs || []).length || 0}`);
+    }
+  }
+
+  isReady() {
+    return this._ready;
   }
 }
 

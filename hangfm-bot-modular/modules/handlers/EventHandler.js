@@ -56,12 +56,21 @@ class EventHandler {
         if (hasKeyword && userId !== this.bot?.config?.userId && this.bot?.spam?.canUseAI?.(userId)) {
           this.logger?.log?.(`🎯 AI keyword detected: ${text}`);
           
-          // CONTENT FILTERING - Block links before AI (expanded regex)
+          // CONTENT FILTERING - Check links with whitelist (expanded regex)
           const linkRegex = /https?:\/\/\S+|www\.\S+\.\S+|bit\.ly\/\S+|t\.co\/\S+/i;
-          if (linkRegex.test(text)) {
-            this.logger?.warn?.(`🚫 Blocked AI trigger with link: ${text.substring(0, 50)}`);
-            await this.bot?.chat?.sendMessage?.(this.roomId, '🚫 Links are not allowed in AI prompts');
-            return;
+          const linkMatch = text.match(linkRegex);
+          if (linkMatch) {
+            // Check if link is safe (whitelisted domains like YouTube, Spotify)
+            const url = linkMatch[0];
+            const isSafe = this.bot?.filter?.checkLinkSafety ? await this.bot.filter.checkLinkSafety(url) : false;
+            
+            if (!isSafe) {
+              this.logger?.warn?.(`🚫 Blocked unsafe link in AI trigger: ${url}`);
+              await this.bot?.chat?.sendMessage?.(this.roomId, '🚫 Unsafe links are not allowed in AI prompts');
+              return;
+            }
+            // Safe link (YouTube, Spotify, etc.) - allow but note it
+            this.logger?.debug?.(`✅ Safe link detected: ${url}`);
           }
           
           // CONTENT FILTERING - Check for hateful content
