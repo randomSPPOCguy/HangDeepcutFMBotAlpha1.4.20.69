@@ -43,14 +43,23 @@ class AIManager {
       // Get user sentiment
       const sentiment = this.updateUserSentiment(userId, message);
       
-      // Build personality prompt
+      // Build personality prompt with nuanced mood tiers
       let personalityPrompt = '';
-      switch (sentiment.sentiment) {
+      switch (sentiment.mood) {
+        case 'enthusiastic':
+          personalityPrompt = `Be extra friendly and playful! This user has been consistently nice (${sentiment.consecutivePositive} positive interactions). Use their name "${userName}", add warmth, maybe a friendly emoji. Show genuine enthusiasm!`;
+          break;
         case 'positive':
           personalityPrompt = 'Be friendly and helpful. The user has been nice to you, so reciprocate their positive energy.';
           break;
+        case 'annoyed':
+          personalityPrompt = `Be moderately sarcastic. This user has been somewhat rude (${sentiment.consecutiveNegative} negative interactions). Give them a bit of sass but don't be cruel.`;
+          break;
+        case 'hostile':
+          personalityPrompt = `This user keeps insulting you (${sentiment.consecutiveNegative} times). You're fed up. Be blunt, sarcastic, even mockingly dismissive. Don't hold back the snark.`;
+          break;
         case 'negative':
-          personalityPrompt = 'Match their energy - be sarcastic and blunt. They\'ve been rude, so give it back to them with attitude.';
+          personalityPrompt = 'Match their energy - be sarcastic and blunt. They\'ve been rude, so give it back to them with a bit of attitude.';
           break;
         default:
           personalityPrompt = 'Start completely NEUTRAL. Be informative and straightforward without sass or friendliness. Just answer the question.';
@@ -183,26 +192,60 @@ Response:`;
       interactions: 0,
       lastInteraction: Date.now(),
       mood: 'neutral', // Current mood state
-      moodHistory: [] // Track mood changes over time
+      moodHistory: [], // Track mood changes over time
+      consecutiveNegative: 0, // Track consecutive negative interactions
+      consecutivePositive: 0  // Track consecutive positive interactions
     };
+    
+    // MOOD DECAY - Reset to neutral if last interaction was > 30 minutes ago
+    const timeSinceLastInteraction = Date.now() - current.lastInteraction;
+    if (timeSinceLastInteraction > 30 * 60 * 1000) { // 30 minutes
+      this.logger?.debug?.(`⏰ Mood decay: ${userId} returned after ${Math.floor(timeSinceLastInteraction/60000)} min, resetting to neutral`);
+      current.mood = 'neutral';
+      current.sentiment = 'neutral';
+      current.consecutiveNegative = 0;
+      current.consecutivePositive = 0;
+    }
     
     const messageLower = message.toLowerCase();
     
     // Check sentiment with expanded word lists
-    const negativeWords = ['stupid', 'dumb', 'suck', 'hate', 'fuck you', 'asshole', 'garbage', 'trash', 'shut up', 'annoying', 'useless'];
-    const positiveWords = ['thanks', 'thank you', 'help', 'info', 'tell me', 'what is', 'good', 'cool', 'awesome', 'love', 'great', 'nice'];
+    const negativeWords = ['stupid', 'dumb', 'suck', 'hate', 'fuck you', 'asshole', 'garbage', 'trash', 'shut up', 'annoying', 'useless', 'terrible', 'awful', 'worst'];
+    const positiveWords = ['thanks', 'thank you', 'help', 'info', 'tell me', 'what is', 'good', 'cool', 'awesome', 'love', 'great', 'nice', 'please', 'sorry', 'appreciate'];
     
     const hasNegative = negativeWords.some(word => messageLower.includes(word));
     const hasPositive = positiveWords.some(word => messageLower.includes(word));
     
-    // Determine new mood
+    // Determine new mood with nuanced tiers
     let newMood = current.mood;
     if (hasNegative && !hasPositive) {
-      newMood = 'negative';
+      // Track consecutive negative interactions
+      current.consecutiveNegative++;
+      current.consecutivePositive = 0;
+      
+      // Nuanced negative tiers based on history
+      if (current.consecutiveNegative >= 3) {
+        newMood = 'hostile'; // Very rude repeatedly
+      } else if (current.consecutiveNegative >= 2) {
+        newMood = 'annoyed'; // Moderately rude
+      } else {
+        newMood = 'negative'; // Mildly negative
+      }
       current.sentiment = 'negative';
+      
     } else if (hasPositive && !hasNegative) {
-      newMood = 'positive';
+      // Track consecutive positive interactions
+      current.consecutivePositive++;
+      current.consecutiveNegative = 0;
+      
+      // Nuanced positive tiers
+      if (current.consecutivePositive >= 3) {
+        newMood = 'enthusiastic'; // Very friendly repeatedly
+      } else {
+        newMood = 'positive'; // Friendly
+      }
       current.sentiment = 'positive';
+      
     } else if (current.interactions === 0) {
       newMood = 'neutral';
       current.sentiment = 'neutral';

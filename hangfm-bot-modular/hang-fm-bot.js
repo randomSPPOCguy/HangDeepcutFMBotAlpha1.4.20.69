@@ -88,6 +88,7 @@ const AFKDetector = require('./modules/features/AFKDetector');
 const StageManager = require('./modules/features/StageManager');
 const SpamProtection = require('./modules/utils/SpamProtection');
 const AIManager = require('./modules/ai/AIManager');
+const ContentFilter = require('./modules/features/ContentFilter');
 
 // ---------- Main ----------
 (async function main() {
@@ -138,12 +139,13 @@ const AIManager = require('./modules/ai/AIManager');
 
     // Initialize other managers
     const spam = new SpamProtection(logger);
+    const ai = new AIManager(config, logger, spam);
+    const filter = new ContentFilter(ai, logger);
     const stats = new StatsManager(config, logger);
     const music = new MusicSelector(config, logger);
     const queue = new QueueManager(config, logger);
     const afk = new AFKDetector(config, logger);
     const stage = new StageManager(config, logger);
-    const ai = new AIManager(config, logger, spam);
 
     // Create bot object (simplified - just a container for modules)
     const bot = {
@@ -158,6 +160,7 @@ const AIManager = require('./modules/ai/AIManager');
       stage,
       spam,
       ai,
+      filter,
       glued: config.startGlued || true
     };
 

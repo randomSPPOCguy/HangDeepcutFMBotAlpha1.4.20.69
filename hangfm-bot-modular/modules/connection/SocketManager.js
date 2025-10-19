@@ -28,10 +28,6 @@ class SocketManager {
     // This method is kept for future use
   }
 
-  getState() {
-    return this.state || this.socket?.state || {};
-  }
-
   async connect() {
     try {
       this.logger.log('🔌 Connecting to Hang.fm...');
@@ -177,7 +173,8 @@ class SocketManager {
   }
 
   getState() {
-    return this.state;
+    // Return local state, fallback to socket's state if not yet populated
+    return this.state || this.socket?.state || {};
   }
 
   updateState(newState) {

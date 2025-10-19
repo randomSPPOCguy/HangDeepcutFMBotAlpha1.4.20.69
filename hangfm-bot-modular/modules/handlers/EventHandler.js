@@ -56,20 +56,20 @@ class EventHandler {
         if (hasKeyword && userId !== this.bot?.config?.userId && this.bot?.spam?.canUseAI?.(userId)) {
           this.logger?.log?.(`🎯 AI keyword detected: ${text}`);
           
-          // CONTENT FILTERING - Block links before AI
-          const linkRegex = /https?:\/\/\S+/i;
+          // CONTENT FILTERING - Block links before AI (expanded regex)
+          const linkRegex = /https?:\/\/\S+|www\.\S+\.\S+|bit\.ly\/\S+|t\.co\/\S+/i;
           if (linkRegex.test(text)) {
             this.logger?.warn?.(`🚫 Blocked AI trigger with link: ${text.substring(0, 50)}`);
             await this.bot?.chat?.sendMessage?.(this.roomId, '🚫 Links are not allowed in AI prompts');
             return;
           }
           
-          // CONTENT FILTERING - Check for inappropriate content
-          if (this.bot?.filter?.isInappropriate) {
-            const filtered = await this.bot.filter.isInappropriate(text);
-            if (filtered) {
-              this.logger?.warn?.(`🚫 Blocked inappropriate AI trigger: ${text.substring(0, 50)}`);
-              return; // Silently ignore
+          // CONTENT FILTERING - Check for hateful content
+          if (this.bot?.filter?.checkHatefulContent) {
+            const isHateful = await this.bot.filter.checkHatefulContent(text);
+            if (isHateful) {
+              this.logger?.warn?.(`🚫 Blocked hateful content in AI trigger: ${text.substring(0, 50)}`);
+              return; // Silently ignore hate speech
             }
           }
           

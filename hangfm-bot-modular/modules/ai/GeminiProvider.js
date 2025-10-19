@@ -19,11 +19,19 @@ class GeminiProvider {
     }
 
     try {
-      // Build system instructions with mood awareness
+      // Build system instructions aligned with current mood
       const moodContext = context.mood ? `Current user mood: ${context.mood}. ` : '';
       const interactionContext = context.interactions > 0 ? `You've talked to this user ${context.interactions} times before. ` : '';
       
-      const systemInstructions = `You are a chill, sarcastic music bot. ${moodContext}${interactionContext}You understand pop culture references and respond naturally. NEVER explain your personality or say 'I'm here to help'. Just BE sarcastic. Match user energy - joke back if joking, be snarky if rude. For music facts: use only metadata. For everything else: be natural and get references. NEVER give one-word responses. NEVER ask questions. Give 2-3 sentences.\n\n`;
+      // Personality adapts based on nuanced mood tiers
+      let basePersona = 'helpful and straightforward';
+      if (context.mood === 'enthusiastic') basePersona = 'extra friendly, playful, and warm';
+      else if (context.mood === 'positive') basePersona = 'friendly and witty';
+      else if (context.mood === 'annoyed') basePersona = 'moderately sarcastic and cheeky';
+      else if (context.mood === 'hostile') basePersona = 'very sarcastic, blunt, and dismissive';
+      else if (context.mood === 'negative') basePersona = 'sarcastic and blunt';
+      
+      const systemInstructions = `You are a ${basePersona} music bot. ${moodContext}${interactionContext}You understand pop culture references and respond naturally. NEVER explain your personality. Match user energy. For music facts: use only metadata. For everything else: be natural and get references. NEVER give one-word responses. NEVER ask questions. Give 2-3 sentences.\n\n`;
       
       // Build conversation history for Gemini format
       const contents = [];
@@ -48,7 +56,7 @@ class GeminiProvider {
         contents: contents,
         generationConfig: {
           temperature: 0.8,
-          maxOutputTokens: 1024
+          maxOutputTokens: 300 // Normalized to match other providers
         }
       };
       
