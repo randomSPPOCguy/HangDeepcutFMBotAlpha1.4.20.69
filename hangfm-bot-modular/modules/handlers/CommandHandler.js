@@ -46,6 +46,7 @@ class CommandHandler {
         await this.handleArtists(args, senderId, senderName); return true;
       case "/help":
       case "/?":
+      case "/commands":
         await this.handleHelp(); return true;
       case "/gitlink":
       case "/github":

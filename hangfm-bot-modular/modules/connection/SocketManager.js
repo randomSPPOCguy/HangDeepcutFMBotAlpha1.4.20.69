@@ -10,11 +10,25 @@ class SocketManager {
     this.socket = null;
     this.state = null;
     this.isConnected = false;
+    this.eventHandlers = new Map(); // Store event handlers to propagate to inner socket
     
     // Initialize socket immediately
     this.logger.log('📡 Creating SocketClient...');
     this.socket = new SocketClient('https://socket.prod.tt.fm');
     this.logger.log('✅ SocketClient created');
+    
+    // Propagate ALL events from inner socket to this manager
+    // This makes the manager act like an EventEmitter proxy
+    this.propagateEvents();
+  }
+
+  propagateEvents() {
+    // Event propagation will be set up in connect() after socket is ready
+    // This method is kept for future use
+  }
+
+  getState() {
+    return this.state || this.socket?.state || {};
   }
 
   async connect() {
@@ -52,6 +66,61 @@ class SocketManager {
       this.logger.log(`👥 Users in room: ${this.state.users?.length || 0}`);
       this.logger.log(`🎧 DJs on stage: ${this.state.djs?.length || 0}`);
       
+      // DEBUG: Test that socket is working
+      this.logger.debug(`🔍 Socket connection state: ${this.socket?.state}`);
+      this.logger.debug(`🔍 Socket has 'on' method: ${typeof this.socket?.on === 'function'}`);
+      this.logger.debug(`🔍 Socket event names: ${this.socket?.eventNames?.() || 'N/A'}`);
+      
+      // DEBUG: Log ALL socket events to see what's actually being emitted
+      if (this.socket) {
+        this.logger.debug('🔍 Setting up debug event logger...');
+        
+        // Intercept emit calls to propagate events AND add debug logging
+        const originalEmit = this.socket.emit.bind(this.socket);
+        const eventHandlers = this.eventHandlers;
+        const logger = this.logger;
+        
+        this.socket.emit = function(...args) {
+          const eventName = args[0];
+          const eventData = args.slice(1);
+          
+          // Debug logging (skip heartbeat/ping spam)
+          if (eventName && !eventName.includes('heartbeat') && !eventName.includes('ping')) {
+            logger?.debug?.(`🔍 [SOCKET EMIT] ${eventName}: ${JSON.stringify(args[1])?.substring(0, 150)}`);
+          }
+          
+          // Propagate to our registered handlers
+          if (eventHandlers.has(eventName)) {
+            const handlers = eventHandlers.get(eventName);
+            handlers.forEach(handler => {
+              try {
+                handler(...eventData);
+              } catch (e) {
+                logger?.error?.(`Event handler error for ${eventName}: ${e.message}`);
+              }
+            });
+          }
+          
+          // Call original emit
+          return originalEmit(...args);
+        };
+        
+        // Listen to common events for debugging
+        const debugEvents = ['statefulMessage', 'statelessMessage', 'serverMessage', 'message', 'data'];
+        debugEvents.forEach(evt => {
+          try {
+            this.socket.on(evt, (data) => {
+              // Show FULL message if it's a chat message
+              if (data && (data.name === 'chatMessage' || data.name === 'userSpoke')) {
+                this.logger.debug(`🔍 [SOCKET EVENT] ${evt} - CHAT MESSAGE: ${JSON.stringify(data)?.substring(0, 500)}`);
+              } else {
+                this.logger.debug(`🔍 [SOCKET EVENT] ${evt}: ${JSON.stringify(data)?.substring(0, 200)}`);
+              }
+            });
+          } catch {}
+        });
+      }
+      
       return connection;
     } catch (error) {
       this.logger.error(`❌ Failed to connect to Hang.fm: ${error.message}`);
@@ -71,7 +140,27 @@ class SocketManager {
     if (!this.socket) {
       throw new Error('Socket not initialized');
     }
+    
+    // Store handler in our map for propagation
+    if (!this.eventHandlers.has(event)) {
+      this.eventHandlers.set(event, []);
+    }
+    this.eventHandlers.get(event).push(callback);
+    
+    // Also bind directly to inner socket as backup
     this.socket.on(event, callback);
+  }
+
+  // Emit method for EventEmitter compatibility
+  emit(event, ...args) {
+    if (this.socket && typeof this.socket.emit === 'function') {
+      this.socket.emit(event, ...args);
+    }
+  }
+
+  // AddListener alias for on()
+  addListener(event, callback) {
+    return this.on(event, callback);
   }
 
   getState() {

@@ -93,6 +93,11 @@ class HangFmBot {
       recentEvents: [] // Last 10 events for context
     };
     
+    // Moderator cache (fetched from API)
+    this.cachedModerators = new Set(); // UUIDs of room moderators
+    this.moderatorCacheTime = 0; // Last time we fetched moderators
+    this.moderatorCacheInterval = 5 * 60 * 1000; // Refresh every 5 minutes
+    
     // User Sentiment Tracking
     this.userSentiment = new Map(); // userId -> { sentiment: 'neutral'|'positive'|'negative', interactions: number, language: 'en' }
     this.basePersonality = 'neutral';
@@ -160,7 +165,7 @@ class HangFmBot {
     this.autoStageManagement = true; // Enable auto stage management
     this.minDJsForBot = 3; // Bot hops up if less than 3 DJs
     this.maxDJsForBot = 4; // Bot hops down if 4+ DJs (including bot)
-    this.gluedToFloor = false; // Bot is glued to floor (can't auto-hop up)
+    this.gluedToFloor = true; // Bot STARTS glued to floor (mods can use /glue to unglue)
     
     // User Stats Tracking
     this.userStats = new Map(); // userId -> { bankroll: number, wins: number, losses: number, upvotes: number, downvotes: number, stars: number, artists: Map }
@@ -583,6 +588,11 @@ class HangFmBot {
       }, 30000); // Check every 30 seconds
       console.log('⏰ Started AFK detection (checks every 30 seconds)');
       
+      // Fetch room moderators from API
+      setTimeout(async () => {
+        await this.fetchRoomModerators();
+      }, 3000); // Wait 3 seconds for room state to settle
+      
       // Check if bot is on stage at startup and select a song
       setTimeout(async () => {
         const isBotOnStage = this.isUserOnStage(this.userId);
@@ -620,7 +630,7 @@ class HangFmBot {
         this.connect().catch(reconnectError => {
           console.log(`❌ Reconnection failed: ${reconnectError.message}`);
           console.log('🤖 Bot is shutting down...');
-          process.exit(1);
+    process.exit(1);
         });
       }, 10000);
     }
@@ -1917,10 +1927,30 @@ If this is clean content, respond with "NO"`;
       const djCount = this.state?.djs?.length || 0;
       const otherDJsOnStage = djCount > 1; // Are there other human DJs with the bot?
       
-      // Get context about what users have been playing recently (not bot songs)
-      const recentUserSongs = this.roomSongHistory
+      // USER REQUEST: Prioritize current DJs on stage over audience members
+      // Get list of current DJs on stage (excluding bot)
+      const currentDJs = (this.state?.djs || []).map(dj => String(dj.userId || dj.id || dj)).filter(id => id !== this.userId);
+      
+      // Get songs played by CURRENT DJs on stage (higher priority)
+      const currentDJSongs = this.roomSongHistory
+        .filter(entry => !entry.isBotSong && currentDJs.includes(String(entry.djId)))
+        .slice(-20); // Last 20 songs from current DJs
+      
+      // Get songs from ALL users as fallback (if not enough data from current DJs)
+      const allUserSongs = this.roomSongHistory
         .filter(entry => !entry.isBotSong && entry.djId !== this.userId && entry.djId !== 'unknown')
-        .slice(-10); // Last 10 user songs for genre context
+        .slice(-10); // Last 10 user songs
+      
+      // PRIORITIZE current DJs - use their songs if we have at least 3, otherwise use all users
+      const recentUserSongs = currentDJSongs.length >= 3 ? currentDJSongs : allUserSongs;
+      
+      if (currentDJSongs.length >= 3) {
+        console.log(`🎯 Analyzing current DJs on stage: ${currentDJs.length} DJs, ${currentDJSongs.length} songs from them`);
+      } else if (currentDJs.length > 0) {
+        console.log(`⚠️ Not enough data from current DJs (${currentDJSongs.length} songs), using all recent plays: ${allUserSongs.length} songs`);
+      } else {
+        console.log(`📚 No other DJs on stage, analyzing all recent user plays: ${allUserSongs.length} songs`);
+      }
       
       // Step 1: Determine if we should use AI
       // USER REQUEST: NEVER use AI - ALWAYS use curated list matching last 10 plays
@@ -2533,19 +2563,13 @@ If this is clean content, respond with "NO"`;
         this.genreRequestedBy = null;
       }
       
-      // Add learned artists ONLY if they're in the curated list
+      // USER REQUEST: Do NOT play learned artists - only use them for genre detection
+      // The bot learns from users to understand the room vibe, but plays DIFFERENT artists
+      const allArtists = [...selectedArtists];
+      
       const learnedArtistsList = Array.from(this.learnedArtists);
-      const verifiedLearnedArtists = learnedArtistsList.filter(learned => {
-        return curatedArtists.some(curated => 
-          curated.toLowerCase() === learned.toLowerCase()
-        );
-      });
-      
-      const allArtists = [...selectedArtists, ...verifiedLearnedArtists];
-      
       if (learnedArtistsList.length > 0) {
-        const filtered = learnedArtistsList.length - verifiedLearnedArtists.length;
-        console.log(`📚 Artist pool: ${curatedArtists.length} curated + ${verifiedLearnedArtists.length} verified learned (${filtered} non-alternative filtered out) = ${allArtists.length} total`);
+        console.log(`📚 Artist pool: ${curatedArtists.length} curated artists (learned ${learnedArtistsList.length} artists from users for vibe detection only)`);
       }
       
       // Pick a random artist (avoiding recently used and last played)
@@ -2617,15 +2641,8 @@ If this is clean content, respond with "NO"`;
           }
         }
         
-        // Remove duplicates and filter learned artists
+        // Remove duplicates (learned artists are NOT included - we only play curated artists)
         vibeFilteredArtists = [...new Set(vibeFilteredArtists)];
-        
-        // Add matching learned artists
-        for (const learnedArtist of this.learnedArtists) {
-          if (availableArtists.some(a => a.toLowerCase() === learnedArtist)) {
-            vibeFilteredArtists.push(learnedArtist);
-          }
-        }
         
         // Fallback if filtering resulted in no artists
         if (vibeFilteredArtists.length === 0) {
@@ -2633,7 +2650,7 @@ If this is clean content, respond with "NO"`;
           vibeFilteredArtists = availableArtists;
         }
         
-        console.log(`🎵 Filtered to ${vibeFilteredArtists.length} artists matching room vibe`);
+        console.log(`🎵 Filtered to ${vibeFilteredArtists.length} curated artists matching room vibe`);
       }
       
       // Safety check before selecting
@@ -2647,11 +2664,8 @@ If this is clean content, respond with "NO"`;
         this.recentlyUsedArtists = this.recentlyUsedArtists.slice(-15);
       }
       
-      // Check if this is a learned artist
-      const isLearnedArtist = this.learnedArtists.has(randomArtist.toLowerCase());
-      const artistSource = isLearnedArtist ? 'learned from users' : 'curated list';
-      
-      console.log(`🎲 Selected artist: ${randomArtist} (${artistSource})`);
+      // All selected artists are from curated list (learned artists are NOT played)
+      console.log(`🎲 Selected artist: ${randomArtist} (curated list)`);
       
       // Get songs for this artist
       const artistSongs = await this.getSongsForArtist(randomArtist);
@@ -2672,13 +2686,13 @@ If this is clean content, respond with "NO"`;
         // Pick a random deep cut
         const randomSong = unplayedSongs[Math.floor(Math.random() * unplayedSongs.length)];
         
-        console.log(`✅ Selected: ${randomArtist} - ${randomSong} (${artistSource})`);
+        console.log(`✅ Selected: ${randomArtist} - ${randomSong} (curated list)`);
         this.lastSongChangeTime = now;
         this.lastPlayedArtist = randomArtist;
         return {
           artist: randomArtist,
           title: randomSong,
-          source: 'Underground Artists + MusicBrainz'
+          source: 'Curated Alternative Artists + MusicBrainz'
         };
       }
       
@@ -4407,6 +4421,45 @@ ${this.holidayEmojis.icon} **Current Holiday:** ${this.holidayEmojis.name} ${emo
     this.sendChat(info);
   }
 
+  async fetchRoomModerators() {
+    try {
+      // Use hardcoded slug for now (API endpoint returns HTML instead of JSON)
+      // TODO: Find the correct API endpoint to fetch room slug dynamically
+      const roomSlug = 'alternative-hiphoprockmetal-2316'; // Your room slug
+      
+      // Try to fetch moderators from API (currently returns HTML, so this won't work)
+      // Keeping the code for future use when the API is fixed
+      try {
+        const response = await axios.get(`https://hang.fm/api/room-service/roomUserRoles/${roomSlug}`, {
+          headers: {
+            'Authorization': `Bearer ${this.botUserToken}`,
+            'Accept': 'application/json'
+          },
+          timeout: 10000
+        });
+        
+        if (response.data && Array.isArray(response.data)) {
+          this.cachedModerators.clear();
+          let modCount = 0;
+          
+          response.data.forEach(roleData => {
+            if (roleData.role === 'moderator' && roleData.userUuid) {
+              this.cachedModerators.add(roleData.userUuid);
+              modCount++;
+            }
+          });
+          
+          this.moderatorCacheTime = Date.now();
+          console.log(`✅ Cached ${modCount} room moderators from API`);
+        }
+      } catch (error) {
+        // API not working - using manual mod list instead
+      }
+    } catch (error) {
+      console.log(`⚠️  Moderator fetch error: ${error.message}`);
+    }
+  }
+
   async isUserCoOwner(userId) {
     try {
       // Check if user is in the room's co-owner list
@@ -4430,15 +4483,36 @@ ${this.holidayEmojis.icon} **Current Holiday:** ${this.holidayEmojis.name} ${emo
 
   async isUserModerator(userId) {
     try {
-      // Check if user is a moderator
+      // OPTION 1: Manual mod list (for guaranteed permissions)
       // HOW TO ADD MODS: Add their UUID to the array below
       // To get UUID: Look at console logs when they chat/play, or use /stats command
       const modIds = [
-        // Example: '0ba94da6-38ff-4e91-b66e-16c7feca60ee', // Corpus (example)
-        // Add moderator UUIDs here (one per line, comma-separated)
+        '64bbcbb7-d2a1-4e9d-9bed-5c84e189c929', // Hollang616 (mod)
+        // Add more moderator UUIDs here (one per line, comma-separated)
       ];
       
-      return modIds.includes(userId);
+      if (modIds.includes(userId)) {
+        console.log(`✅ User ${userId} is in manual mod list`);
+        return true; // Manually added mod
+      }
+      
+      // OPTION 2: Check cached moderators from API (auto-refreshing)
+      const now = Date.now();
+      const cacheAge = now - this.moderatorCacheTime;
+      
+      // Refresh cache if it's older than 5 minutes
+      if (cacheAge > this.moderatorCacheInterval) {
+        await this.fetchRoomModerators();
+      }
+      
+      // Check if user is in cached moderators
+      if (this.cachedModerators.has(userId)) {
+        console.log(`✅ User ${userId} is a room moderator (from API cache)`);
+        return true;
+      }
+      
+      console.log(`❌ User ${userId} is NOT a moderator`);
+      return false;
     } catch (error) {
       console.log(`❌ Error checking moderator status: ${error.message}`);
       return false;
@@ -9641,11 +9715,11 @@ bot.connect().catch(error => {
 });
 
 // Handle graceful shutdown
-process.on('SIGINT', () => {
+  process.on('SIGINT', () => {
   console.log('\n🛑 Shutting down bot...');
   bot.saveUptimeData();
-  process.exit(0);
-});
+    process.exit(0);
+  });
 
 process.on('SIGTERM', () => {
   console.log('\n🛑 Shutting down bot...');

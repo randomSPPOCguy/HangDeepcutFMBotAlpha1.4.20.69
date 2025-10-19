@@ -23,19 +23,26 @@ class AFKDetector {
     this.logger.log('⏰ AFK detection started (36 min timeout)');
   }
 
-  trackActivity(userId) {
+  trackActivity(userId, activityType = 'activity') {
+    if (!userId) return;
+    
+    const wasTracked = this.userLastActivity.has(userId);
     this.userLastActivity.set(userId, Date.now());
     
     // Clear warning if exists
     if (this.afkWarnings.has(userId)) {
       const userName = this.afkWarnings.get(userId).username;
-      this.logger.log(`✅ ${userName} activity - AFK warning cleared`);
+      this.logger.log(`✅ ${userName} activity detected (${activityType}) - AFK timer reset & warning cleared`);
       this.afkWarnings.delete(userId);
+    } else if (wasTracked) {
+      // Silent reset - user is active, timer refreshed
+      this.logger.debug(`⏰ AFK timer reset for user (${activityType})`);
     }
   }
 
   async checkAFKDJs() {
     try {
+      if (!this.bot?.socket?.getState) return; // Skip if socket not ready
       const now = Date.now();
       const state = this.bot.socket.getState();
       const djs = state?.djs || [];
@@ -44,7 +51,10 @@ class AFKDetector {
       
       for (const dj of djs) {
         const djId = dj.uuid || dj.userProfile?.uuid;
-        const djName = this.bot.helpers.getUsernameById(djId, state, this.config.userId) || 'Unknown DJ';
+        if (!djId) continue; // Skip if no ID
+        
+        // Get DJ name from state
+        const djName = state?.allUserData?.[djId]?.name || dj.name || 'Unknown DJ';
         
         // Skip the bot
         if (djId === this.bot.config.userId) continue;

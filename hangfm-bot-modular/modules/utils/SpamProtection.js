@@ -5,6 +5,12 @@ class SpamProtection {
   constructor(logger) {
     this.logger = logger;
     
+    // Simple cooldown maps (per ChatGPT's spec)
+    this.userCommandCooldowns = new Map(); // userId -> timestamp
+    this.userAICooldowns = new Map(); // userId -> timestamp
+    this.aiCooldown = 10000; // 10 seconds for AI
+    this.commandCooldown = 3000; // 3 seconds for commands
+    
     // General spam protection
     this.userCooldowns = new Map(); // userId -> { count, lastReset, flaggedForSpam }
     this.cooldownLimit = 3;
@@ -15,6 +21,27 @@ class SpamProtection {
     this.aiSpamLimit = 3;
     this.aiSpamPeriod = 2.5 * 60 * 1000;
     this.aiGrantedUsers = new Set(); // Users with unlimited AI access
+  }
+  
+  // Simple cooldown methods (per ChatGPT's spec)
+  canUseAI(uid) {
+    const t = Date.now();
+    const last = this.userAICooldowns.get(String(uid)) || 0;
+    return t - last >= this.aiCooldown;
+  }
+  
+  canUseCommand(uid) {
+    const t = Date.now();
+    const last = this.userCommandCooldowns.get(String(uid)) || 0;
+    return t - last >= this.commandCooldown;
+  }
+  
+  recordAIUsage(uid) {
+    this.userAICooldowns.set(String(uid), Date.now());
+  }
+  
+  recordCommandUsage(uid) {
+    this.userCommandCooldowns.set(String(uid), Date.now());
   }
 
   async checkSpamProtection(userId, isCoOwner = false, isMod = false, isRegular = false) {

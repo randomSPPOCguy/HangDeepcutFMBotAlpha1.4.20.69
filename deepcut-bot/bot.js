@@ -169,6 +169,15 @@ class DeepcutAIBot extends EventEmitter {
     // Content Filter Strike System (3-strike ban for hateful content)
     this.userStrikes = new Map(); // userId -> { strikes: number, offenses: [] }
     this.maxStrikes = 3; // Ban on 3rd strike
+    
+    // GENRE POOL FOR SPOTIFY/DISCOGS DISCOVERY
+    this.genrePool = this.defineGenrePool();
+    this.yearRange = { min: 1950, max: 2025 };
+    this.spotifyAccessToken = null;
+    this.spotifyTokenExpiry = 0;
+    this.userGenrePreferences = new Map(); // userId -> Map of genre -> count
+    this.recentGenres = []; // Track recent genres to avoid repetition
+    this.maxRecentGenres = 10;
     this.contentFilterEnabled = process.env.CONTENT_FILTER_ENABLED !== 'false'; // Enabled by default
     
     // AI Usage Optimization (save tokens)
@@ -9182,10 +9191,9 @@ ${provider === 'openai' ? '📊 Model: gpt-4o-mini' : ''}`;
       // Get unique artists from recent plays to avoid repeating
       const recentUniqueArtists = [...new Set(recentArtists)];
       
-      // Combine curated + learned artists
+      // USER REQUEST: Only use curated artists (learned artists are for vibe detection only)
       const curatedArtists = this.getAllMusicCuratedArtists();
-      const learnedArtistsList = Array.from(this.learnedArtists);
-      const allArtists = [...curatedArtists, ...learnedArtistsList];
+      const allArtists = [...curatedArtists];
       
       // Filter out artists that were already played in last 10 plays OR in recentlyUsedArtists
       const availableArtists = allArtists.filter(artist => 
@@ -9288,9 +9296,9 @@ ${provider === 'openai' ? '📊 Model: gpt-4o-mini' : ''}`;
 
   async selectAndQueueRandomSong() {
     try {
-      // Combine curated + learned artists
+      // USER REQUEST: Only use curated artists (learned artists are for vibe detection only)
       const curatedArtists = this.getCuratedArtists();
-      const allArtists = [...curatedArtists, ...Array.from(this.learnedArtists)];
+      const allArtists = [...curatedArtists];
       
       // Try up to 5 different artists/songs until one works
       for (let attempt = 0; attempt < 5; attempt++) {
@@ -9657,62 +9665,572 @@ ${provider === 'openai' ? '📊 Model: gpt-4o-mini' : ''}`;
   // ALL MUSIC GENRES (deepcut.live = universal music room)
   // ═══════════════════════════════════════════════════════════════
   
+  defineGenrePool() {
+    // Alternative Hip Hop and sub-genres
+    const altHipHop = [
+      'alternative hip hop',
+      'conscious hip hop',
+      'abstract hip hop',
+      'experimental hip hop',
+      'underground hip hop',
+      'indie hip hop',
+      'jazz hip hop',
+      'trip hop',
+      'boom bap',
+      'political hip hop',
+      'nerdcore'
+    ];
+    
+    // Alternative Rock and sub-genres
+    const altRock = [
+      'alternative rock',
+      'indie rock',
+      'post-punk',
+      'new wave',
+      'grunge',
+      'britpop',
+      'shoegaze',
+      'noise rock',
+      'math rock',
+      'post-rock',
+      'emo',
+      'pop punk',
+      'ska punk',
+      'garage rock',
+      'garage rock revival',
+      'psychedelic rock',
+      'art rock',
+      'prog rock',
+      'college rock',
+      'jangle pop',
+      'noise pop',
+      'dream pop',
+      'lo-fi',
+      'baggy',
+      'madchester',
+      'c86'
+    ];
+    
+    // Alternative Metal (ONLY alternative metal and nu-metal as requested)
+    const altMetal = [
+      'alternative metal',
+      'nu metal',
+      'nu-metal'
+    ];
+    
+    return [...altHipHop, ...altRock, ...altMetal];
+  }
+  
+  async getSpotifyAccessToken() {
+    try {
+      if (this.spotifyAccessToken && Date.now() < this.spotifyTokenExpiry) {
+        return this.spotifyAccessToken;
+      }
+      
+      const clientId = process.env.SPOTIFY_CLIENT_ID;
+      const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+      
+      if (!clientId || !clientSecret) {
+        this.log('❌ Spotify credentials missing');
+        return null;
+      }
+      
+      const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+      const response = await axios.post('https://accounts.spotify.com/api/token',
+        'grant_type=client_credentials',
+        {
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          timeout: 10000
+        }
+      );
+      
+      this.spotifyAccessToken = response.data.access_token;
+      this.spotifyTokenExpiry = Date.now() + (response.data.expires_in * 1000);
+      this.log('✅ Spotify access token obtained');
+      
+      return this.spotifyAccessToken;
+    } catch (error) {
+      this.log(`❌ Spotify auth error: ${error.message}`);
+      return null;
+    }
+  }
+  
+  async discoverFromSpotify(preferredGenres = []) {
+    try {
+      if (!this.spotifyAccessToken) {
+        await this.getSpotifyAccessToken();
+      }
+      
+      if (!this.spotifyAccessToken) {
+        return null;
+      }
+      
+      // Select a genre - prefer user's preferences if available
+      let genre;
+      if (preferredGenres.length > 0) {
+        genre = preferredGenres[Math.floor(Math.random() * preferredGenres.length)];
+        this.log(`🎯 Using preferred genre: ${genre}`);
+      } else {
+        // Filter out recently used genres
+        const availableGenres = this.genrePool.filter(g => !this.recentGenres.includes(g));
+        const genresToUse = availableGenres.length > 0 ? availableGenres : this.genrePool;
+        genre = genresToUse[Math.floor(Math.random() * genresToUse.length)];
+      }
+      
+      // Track recent genres
+      this.recentGenres.push(genre);
+      if (this.recentGenres.length > this.maxRecentGenres) {
+        this.recentGenres = this.recentGenres.slice(-this.maxRecentGenres);
+      }
+      
+      const searchQuery = `genre:"${genre}"`;
+      const offset = Math.floor(Math.random() * 50);
+      
+      this.log(`🔍 Spotify search: ${searchQuery} (offset: ${offset})`);
+      
+      let response = await axios.get(`https://api.spotify.com/v1/search`, {
+        params: {
+          q: searchQuery,
+          type: 'track',
+          limit: 50,
+          offset: offset
+        },
+        headers: {
+          'Authorization': `Bearer ${this.spotifyAccessToken}`
+        },
+        timeout: 10000
+      });
+      
+      let tracks = response.data?.tracks?.items || [];
+      
+      // Fallback: Try simpler query if no results
+      if (tracks.length === 0) {
+        const simpleQuery = genre.split(' ')[0];
+        this.log(`🔍 Retry with simpler query: ${simpleQuery}`);
+        response = await axios.get(`https://api.spotify.com/v1/search`, {
+          params: {
+            q: simpleQuery,
+            type: 'track',
+            limit: 50,
+            offset: Math.floor(Math.random() * 50)
+          },
+          headers: {
+            'Authorization': `Bearer ${this.spotifyAccessToken}`
+          },
+          timeout: 10000
+        });
+        tracks = response.data?.tracks?.items || [];
+      }
+      
+      if (tracks.length === 0) {
+        return null;
+      }
+      
+      const track = tracks[Math.floor(Math.random() * tracks.length)];
+      const artist = track.artists[0].name;
+      const artistId = track.artists[0].id;
+      
+      // Skip recently used artists
+      if (this.recentlyUsedArtists.some(a => a.toLowerCase() === artist.toLowerCase())) {
+        this.log(`⏭️  Skipping recently used artist: ${artist}`);
+        return null;
+      }
+      
+      // Get more tracks from this artist
+      const artistResponse = await axios.get(`https://api.spotify.com/v1/artists/${artistId}/top-tracks`, {
+        params: { market: 'US' },
+        headers: { 'Authorization': `Bearer ${this.spotifyAccessToken}` },
+        timeout: 10000
+      });
+      
+      const songs = artistResponse.data.tracks.map(t => t.name);
+      
+      this.log(`✅ Discovered from Spotify: ${artist} (${songs.length} songs) [Genre: ${genre}]`);
+      
+      return { artist, songs, genre };
+    } catch (error) {
+      this.log(`❌ Spotify discovery error: ${error.message}`);
+      return null;
+    }
+  }
+  
+  async discoverFromDiscogs(preferredGenres = []) {
+    try {
+      const token = process.env.DISCOGS_TOKEN;
+      if (!token) {
+        this.log('❌ Discogs token missing');
+        return null;
+      }
+      
+      // Select a genre
+      let genre;
+      if (preferredGenres.length > 0) {
+        genre = preferredGenres[Math.floor(Math.random() * preferredGenres.length)];
+      } else {
+        const availableGenres = this.genrePool.filter(g => !this.recentGenres.includes(g));
+        const genresToUse = availableGenres.length > 0 ? availableGenres : this.genrePool;
+        genre = genresToUse[Math.floor(Math.random() * genresToUse.length)];
+      }
+      
+      // Simplify genre for Discogs (they use simpler tags)
+      const discogsGenre = genre.split(' ')[0]; // e.g., "alternative" from "alternative rock"
+      
+      this.log(`🔍 Discogs search: genre=${discogsGenre}`);
+      
+      const response = await axios.get('https://api.discogs.com/database/search', {
+        params: {
+          genre: discogsGenre,
+          type: 'release',
+          per_page: 50,
+          page: Math.floor(Math.random() * 10) + 1
+        },
+        headers: {
+          'Authorization': `Discogs token=${token}`,
+          'User-Agent': 'DeepcutMusicBot/1.0'
+        },
+        timeout: 10000
+      });
+      
+      const results = response.data?.results || [];
+      if (results.length === 0) {
+        return null;
+      }
+      
+      const release = results[Math.floor(Math.random() * results.length)];
+      const artist = release.title.split('-')[0].trim();
+      
+      // Skip recently used artists
+      if (this.recentlyUsedArtists.some(a => a.toLowerCase() === artist.toLowerCase())) {
+        this.log(`⏭️  Skipping recently used artist: ${artist}`);
+        return null;
+      }
+      
+      // Get songs from MusicBrainz
+      const songs = await this.getSongsForArtist(artist);
+      
+      this.log(`✅ Discovered from Discogs: ${artist} (${songs.length} songs) [Genre: ${genre}]`);
+      
+      return { artist, songs, genre };
+    } catch (error) {
+      this.log(`❌ Discogs discovery error: ${error.message}`);
+      return null;
+    }
+  }
+  
   getAllMusicCuratedArtists() {
-    // Curated list - HEAVY focus on Hip Hop, Rock, and Metal (minimal pop/electronic)
+    // COMPREHENSIVE curated list from hang.fm bot - ALTERNATIVE genres only
+    // User request: Focus on Alternative Hip Hop, Alternative Rock, Alternative Metal
     return [
-      // Hip Hop - Underground/Alternative (HEAVY PRIORITY - 90s boom bap focus)
-      'MF DOOM', 'Madlib', 'Aesop Rock', 'El-P', 'Run The Jewels', 'Death Grips', 'clipping.',
-      'Atmosphere', 'Brother Ali', 'Eyedea & Abilities', 'Sage Francis', 'P.O.S',
-      'Busdriver', 'Open Mike Eagle', 'billy woods', 'Armand Hammer', 'Quelle Chris',
-      'A Tribe Called Quest', 'De La Soul', 'The Pharcyde', 'Souls of Mischief', 'Hieroglyphics',
-      'Wu-Tang Clan', 'GZA', 'Raekwon', 'Ghostface Killah', 'Method Man',
-      'Outkast', 'UGK', 'Geto Boys', 'Scarface', 'Three 6 Mafia',
-      'Jedi Mind Tricks', 'Vinnie Paz', 'Army of the Pharaohs', 'Ill Bill', 'La Coka Nostra',
-      'Black Star', 'Mos Def', 'Talib Kweli', 'Common', 'The Roots',
-      'Gang Starr', 'DJ Premier', 'Pete Rock & CL Smooth', 'Lord Finesse', 'Big L',
-      'Organized Konfusion', 'Company Flow', 'Cannibal Ox', 'Deltron 3030', 'Dr. Octagon',
-      'Blackalicious', 'Jurassic 5', 'Dilated Peoples', 'Living Legends', 'Freestyle Fellowship',
-      'Aceyalone', 'Abstract Rude', 'Myka 9', 'Haiku d\'Etat', 'Project Blowed',
+      // ═══════════════════════════════════════════════════════════════
+      // ALTERNATIVE HIP HOP / UNDERGROUND HIP HOP
+      // Main subgenres: Abstract, Conscious, Backpack, Jazz Rap
+      // ═══════════════════════════════════════════════════════════════
       
-      // Hip Hop - Mainstream/Popular
-      'Kendrick Lamar', 'J. Cole', 'Nas', 'The Notorious B.I.G.',
-      'Tupac', '2Pac', 'Eminem', 'Dr. Dre', 'Snoop Dogg', 'Ice Cube', 'N.W.A',
-      'Tyler, The Creator', 'Earl Sweatshirt', 'Mac Miller',
+      // Underground / Abstract Hip Hop (MASSIVE EXPANSION)
+      'MF DOOM', 'Madlib', 'Madvillain', 'Viktor Vaughn', 'King Geedorah', 'JJ DOOM', 'DangerDOOM', 'NehruvianDOOM',
+      'Quasimoto', 'Jaylib', 'Lootpack', 'Yesterday\'s New Quintet', 'Sound Directions',
+      'Aesop Rock', 'El-P', 'Run The Jewels', 'Company Flow', 'Cannibal Ox', 'Vast Aire', 'Vordul Mega',
+      'Atoms Family', 'Cryptic One', 'Windnbreeze', 'Alaska', 'Leak Bros',
+      'Atmosphere', 'Brother Ali', 'Eyedea & Abilities', 'Slug', 'Sage Francis', 'P.O.S', 'Prof',
+      'Busdriver', 'Open Mike Eagle', 'billy woods', 'Armand Hammer', 'Elucid', 'Quelle Chris',
+      'Death Grips', 'clipping.', 'Dälek', 'Antipop Consortium', 'Ho99o9', 'Backxwash',
+      'Cage', 'Mr. Lif', 'Copywrite', 'Blueprint', 'RJD2', 'Illogic', 'Jakki da Motamouth',
+      'Doomtree', 'Sims', 'Dessa', 'Cecil Otter', 'Mike Mictlan', 'Lazerbeak', 'Paper Tiger',
+      'Anticon', 'Sole', 'Alias', 'Pedestrian', 'Why?', 'Jel', 'Odd Nosdam', 'Doseone',
+      'Themselves', 'Subtle', 'Reaching Quiet', 'Deep Puddle Dynamics', '13 & God', 'cLOUDDEAD',
+      'Clouddead', 'Passage', 'Restiform Bodies', 'Telephone Jim Jesus',
       
-      // Rock - Classic/Mainstream (HIGH PRIORITY)
-      'The Beatles', 'Led Zeppelin', 'Pink Floyd', 'The Rolling Stones', 'The Who',
-      'Queen', 'David Bowie', 'Jimi Hendrix', 'The Doors', 'Cream',
-      'Nirvana', 'Pearl Jam', 'Soundgarden', 'Alice in Chains', 'Stone Temple Pilots',
-      'Radiohead', 'The Smashing Pumpkins', 'R.E.M.', 'The Cure',
-      'Red Hot Chili Peppers', 'Foo Fighters', 'Queens of the Stone Age', 'The White Stripes',
-      'The Strokes', 'Arctic Monkeys', 'Muse', 'Weezer', 'Green Day',
+      // Conscious / Political Hip Hop (EXPANDED)
+      'Talib Kweli', 'Mos Def', 'Yasiin Bey', 'Common', 'The Roots', 'Black Star', 'Dead Prez',
+      'Public Enemy', 'KRS-One', 'Boogie Down Productions',
+      'Immortal Technique', 'Sage Francis', 'The Coup',
+      'Michael Franti', 'Spearhead',
+      'Pharoahe Monch', 'Organized Konfusion', 'Arrested Development',
+      'Lupe Fiasco', 'Blu', 'Blu & Exile', 'Exile',
+      'Little Brother', 'Phonte', '9th Wonder', 'The Foreign Exchange',
+      'Oddisee', 'Apollo Brown', 'Skyzoo', 'Rapsody',
+      'Blackstar', 'Jean Grae', 'Murs', 'Kendrick Lamar', 'J. Cole',
+      'Noname', 'Saba', 'Smino', 'Mick Jenkins', 'Vic Mensa',
       
-      // Rock - Alternative/Indie (HIGH PRIORITY)
-      'Pixies', 'Sonic Youth', 'Pavement', 'Built to Spill', 'Modest Mouse',
-      'Arcade Fire', 'The National', 'Vampire Weekend', 'Interpol',
-      'Dinosaur Jr.', 'The Replacements', 'Hüsker Dü', 'Guided by Voices',
-      'Sebadoh', 'Superchunk', 'Archers of Loaf', 'Polvo',
+      // Jazz Rap / Native Tongues (DEEP DIVE)
+      'A Tribe Called Quest', 'Q-Tip', 'Phife Dawg',
+      'De La Soul', 'Digable Planets',
+      'The Pharcyde', 'Slimkid3', 'Fatlip',
+      'Jungle Brothers', 'Souls of Mischief', 'Hieroglyphics', 'Del the Funky Homosapien', 'Casual',
+      'Slum Village', 'J Dilla', 'Pete Rock & CL Smooth', 'Pete Rock',
+      'Gang Starr', 'DJ Premier', 'Guru',
+      'The Roots', 'Black Thought', 'Questlove',
+      'Us3', 'Freestyle Fellowship', 'Aceyalone',
+      'The Coup', 'Boots Riley',
       
-      // Metal - Various Subgenres (HIGH PRIORITY)
-      'Metallica', 'Black Sabbath', 'Iron Maiden', 'Judas Priest', 'Slayer',
-      'Megadeth', 'Pantera', 'Tool', 'System of a Down', 'Deftones',
-      'Rage Against the Machine', 'Korn', 'Slipknot', 'Lamb of God', 'Mastodon',
-      'Opeth', 'Gojira', 'Meshuggah', 'Between the Buried and Me', 'Converge',
-      'Sleep', 'High on Fire', 'Electric Wizard', 'Neurosis', 'Isis',
-      'Melvins', 'Baroness', 'Pelican', 'Russian Circles', 'Red Fang',
-      'Sunn O)))', 'Earth', 'Boris', 'Wolves in the Throne Room',
+      // Wu-Tang Extended Universe (COMPLETE)
+      'Wu-Tang Clan', 'GZA', 'Raekwon', 'Ghostface Killah',
+      'Method Man', 'Ol\' Dirty Bastard', 'ODB',
+      'Inspectah Deck', 'Masta Killa', 'U-God',
+      'Cappadonna', 'Killah Priest', 'Sunz of Man',
+      'Gravediggaz', 'RZA', 'Bronze Nazareth', 'Shyheim',
       
-      // Punk/Hardcore
-      'The Ramones', 'The Clash', 'Sex Pistols', 'Black Flag', 'Minor Threat',
-      'Dead Kennedys', 'Bad Brains', 'Fugazi', 'Refused', 'At the Drive-In',
-      'Descendents', 'ALL', 'Jawbreaker', 'Hot Water Music',
+      // West Coast Underground Collectives (DEEP)
+      'Deltron 3030', 'Del the Funky Homosapien', 'Casual', 'Pep Love', 'Tajai',
+      'Hieroglyphics', 'Souls of Mischief', 'Opio', 'A-Plus', 'Phesto', 'Domino',
+      'Jurassic 5', 'Chali 2na', 'Akil', 'Marc 7even', 'Zaakir', 'Cut Chemist', 'DJ Nu-Mark',
+      'Dilated Peoples', 'Evidence', 'Rakaa Iriscience', 'Babu', 'The Alchemist',
+      'People Under the Stairs', 'Thes One', 'Double K', 'OM Records',
+      'Living Legends', 'The Grouch', 'Eligh', 'Scarub', 'Luckyiam', 'Murs', 'Arata',
+      'The Grouch & Eligh', 'Zion I', 'Amp Live', 'AmpLive', 'Deuce Eclipse',
+      'Blackalicious', 'Gift of Gab', 'Chief Xcel', 'Lyrics Born', 'Lateef the Truthspeaker', 'Latyrx',
+      'Crown City Rockers', 'Lifesavas', 'Vursatyl', 'Jumbo', 'Quannum',
       
-      // Shoegaze/Dream Pop
-      'My Bloody Valentine', 'Slowdive', 'Ride', 'Cocteau Twins', 'Mazzy Star',
+      // Modern Underground / Lo-Fi Hip Hop (EXPANDED)
+      'Westside Gunn', 'Conway the Machine', 'Benny the Butcher', 'Griselda',
+      'Your Old Droog', 'Ka', 'Roc Marciano', 'Mach-Hommy',
+      'Navy Blue', 'MIKE', 'Earl Sweatshirt', 'Vince Staples', 'Danny Brown',
+      'Milo', 'R.A.P. Ferreira', 'Serengeti', 'Pink Siifu',
+      'JPEGMAFIA', 'Clams Casino',
+      'Denmark Vessey', 'Homeboy Sandman',
+      'Kool A.D.', 'Das Racist', 'Heems',
+      'Chester Watson', 'Medhane',
+      'Boldy James', 'Stove God Cooks', 'Rome Streetz', 'Fly Anakin',
+      'Mavi', 'Maxo', 'Slauson Malone', 'Standing on the Corner',
+      'Koncept Jack$on', 'Liv.e', 'MAVI', 'Mutant Academy',
+      '$$$ Lean Leanin', 'Akai Solo', 'lojii', 'CRIMEAPPLE',
       
-      // Post-Rock/Math Rock
-      'Godspeed You! Black Emperor', 'Explosions in the Sky', 'Mogwai', 'Slint',
-      'Tortoise', 'Battles', 'Don Caballero', 'Swans', 'Shellac'
+      // Experimental / Abstract Hip Hop (HOT RIGHT NOW)
+      'Clipping', 'Death Grips', 'Shabazz Palaces',
+      'Captain Murphy', 'Flying Lotus', 'Thundercat',
+      'The Underachievers', 'Flatbush Zombies', 'Pro Era', 'Joey Bada$$',
+      'Injury Reserve', 'Armand Hammer', 'billy woods', 'Elucid',
+      'Quelle Chris', 'The Alchemist', 'Action Bronson',
+      'Freddie Gibbs', 'Madlib', 'Freddie Gibbs & Madlib',
+      'Run The Jewels', 'Killer Mike', 'El-P',
+      'Anderson .Paak', 'NxWorries', 'Knxwledge',
+      'Tyler, The Creator', 'Odd Future', 'Frank Ocean',
+      'Mac Miller', 'Vince Staples', 'ScHoolboy Q',
+      'Isaiah Rashad', 'SiR', 'Reason', 'Zacari',
+      
+      // Southern Alternative / Dirty South (DEEP)
+      'Outkast', 'André 3000', 'Big Boi', 'Goodie Mob', 'CeeLo Green', 'Khujo',
+      'Killer Mike', 'Run The Jewels', 'Dungeon Family', 'Organized Noize',
+      'Witchdoctor', 'Cool Breeze', 'Backbone', 'Big Rube', 'Society of Soul',
+      'UGK', 'Bun B', 'Pimp C', 'Devin the Dude', 'Scarface', 'Geto Boys',
+      'Willie D', 'Bushwick Bill', 'Three 6 Mafia', 'Project Pat', 'Juicy J',
+      '8Ball & MJG', 'Eightball', 'MJG', 'Suave House', 'Hypnotize Minds',
+      'CunninLynguists', 'Kno', 'Deacon the Villain', 'Natti', 'Mr. SOS',
+      
+      // East Coast Underground (DEEP)
+      'Jedi Mind Tricks', 'Vinnie Paz', 'Stoupe the Enemy of Mankind', 'Jus Allah',
+      'Army of the Pharaohs', 'Apathy', 'Celph Titled', 'Esoteric', 'Planetary',
+      'Demigodz', 'Ill Bill', 'Necro', 'Non Phixion', 'Sabac Red', 'Goretex',
+      'La Coka Nostra', 'Slaine', 'Everlast', 'DJ Lethal', 'Danny Boy',
+      'Snowgoons', 'R.A. the Rugged Man', 'Jedi Mind Tricks', 'Reef the Lost Cauze',
+      'Pharoahe Monch', 'Organized Konfusion', 'Prince Po', 'O.C.', 'D.I.T.C.',
+      'Kool Keith', 'Dr. Octagon', 'Dr. Dooom', 'Black Elvis', 'Ultramagnetic MCs',
+      'Ced Gee', 'TR-Love', 'Moe Love', 'Tim Dog', 'Black Sheep', 'Dres', 'Mista Lawnge',
+      'Brand Nubian', 'Grand Puba', 'Lord Jamar', 'Sadat X', 'DJ Alamo',
+      
+      // ═══════════════════════════════════════════════════════════════
+      // ALTERNATIVE ROCK
+      // Main subgenres: Indie, Shoegaze, Post-Hardcore, Emo, Noise Rock
+      // ═══════════════════════════════════════════════════════════════
+      
+      // Well-Known Alternative Rock (90s/00s - deep cuts only)
+      'Radiohead', 'Thom Yorke', 'Atoms for Peace', 'Nirvana', 'Pearl Jam', 'Soundgarden', 'Alice in Chains',
+      'Smashing Pumpkins', 'Nine Inch Nails', 'Trent Reznor', 'How to Destroy Angels',
+      'The Cure', 'Robert Smith', 'Depeche Mode', 'New Order', 'Joy Division',
+      'Stone Temple Pilots', 'R.E.M.', 'The Smiths', 'Morrissey',
+      'Jane\'s Addiction', 'Porno for Pyros', 'Red Hot Chili Peppers', 'Faith No More',
+      'Foo Fighters', 'Queens of the Stone Age', 'Muse', 'The Killers',
+      'Arcade Fire', 'Vampire Weekend', 'MGMT', 'Tame Impala',
+      'Phoenix', 'Two Door Cinema Club', 'Foster the People', 'Alt-J',
+      
+      // Garage Rock / Blues Rock Revival
+      'The White Stripes', 'Jack White', 'The Raconteurs', 'The Dead Weather',
+      'The Black Keys', 'Dan Auerbach', 'The Arcs', 'Queens of the Stone Age', 'Eagles of Death Metal',
+      'Them Crooked Vultures', 'The Hives', 'The Vines', 'The Strokes', 'The Libertines',
+      'Arctic Monkeys', 'The Last Shadow Puppets', 'Bloc Party', 'Franz Ferdinand',
+      
+      // Indie Rock / Lo-Fi (DEEP)
+      'Pavement', 'Stephen Malkmus', 'Silver Jews',
+      'Built to Spill', 'Modest Mouse', 'Ugly Casanova',
+      'Dinosaur Jr', 'J Mascis', 'Sebadoh', 'Lou Barlow',
+      'Guided by Voices', 'Superchunk',
+      'Archers of Loaf', 'Polvo',
+      'Pixies', 'Frank Black', 'The Breeders', 'The Amps',
+      'Beck', 'Weezer', 'The Rentals',
+      'Interpol', 'Spoon', 'Wilco', 'Uncle Tupelo',
+      'Yo La Tengo', 'Neutral Milk Hotel', 'The Olivia Tremor Control',
+      'Sleater-Kinney', 'Wild Flag', 'Bikini Kill', 'Le Tigre',
+      'Sonic Youth', 'Thurston Moore', 'Lee Ranaldo', 'Kim Gordon',
+      'Mudhoney', 'The Melvins', 'Buzz Osborne', 'Screaming Trees',
+      'Fugazi', 'Minor Threat', 'Rites of Spring', 'Embrace',
+      'Drive Like Jehu', 'Hot Snakes', 'Rocket from the Crypt',
+      'Jawbox', 'Jawbreaker', 'Samiam', 'Texas Is the Reason',
+      'Built to Spill', 'Dismemberment Plan', 'Shudder to Think',
+      'Karate', 'June of 44', 'Shipping News', 'Rodan',
+      
+      // Indie Folk / Alt-Country
+      'Bon Iver', 'Sufjan Stevens', 'Iron & Wine', 'Fleet Foxes', 'Grizzly Bear',
+      'The National', 'Frightened Rabbit', 'The Tallest Man on Earth', 'Father John Misty',
+      'Andrew Bird', 'Neko Case', 'The New Pornographers', 'A.C. Newman',
+      'Elliott Smith', 'Bright Eyes', 'Conor Oberst', 'Cursive', 'The Good Life',
+      
+      // Shoegaze / Dream Pop (MASSIVE)
+      'My Bloody Valentine', 'Slowdive', 'Mojave 3',
+      'Ride', 'Oasis', 'Lush',
+      'Mazzy Star', 'Hope Sandoval', 'Cocteau Twins',
+      'The Jesus and Mary Chain', 'Spiritualized', 'Spacemen 3',
+      'Swervedriver', 'Catherine Wheel', 'Chapterhouse', 'Curve',
+      'Pale Saints', 'Medicine',
+      'Galaxie 500', 'Luna',
+      'Low', 'Bedhead', 'Codeine', 'Duster',
+      'Hum', 'Failure', 'Autolux', 'Swirlies',
+      'Lovesliescrushing', 'Broken Social Scene', 'Stars',
+      'M83', 'School of Seven Bells', 'Asobi Seksu',
+      'Deerhunter', 'Atlas Sound', 'Beach House', 'Purity Ring',
+      'Whirr', 'Nothing', 'Ringo Deathstarr', 'A Place to Bury Strangers',
+      'The Depreciation Guild', 'Alcest', 'Les Discrets',
+      'Lantlôs', 'Amesoeurs', 'Agalloch',
+      
+      // Post-Hardcore / Emo / Screamo (COMPLETE)
+      'At the Drive-In', 'The Mars Volta', 'Sparta', 'Antemasque',
+      'Glassjaw', 'Head Automatica', 'Daryl Palumbo',
+      'Refused', 'The (International) Noise Conspiracy', 'Dennis Lyxzén',
+      'Thursday', 'Geoff Rickly', 'No Devotion', 'United Nations',
+      'Thrice', 'Dustin Kensrue', 'The Alchemy Index',
+      'La Dispute', 'Touché Amoré', 'Pianos Become the Teeth',
+      'Defeater', 'The Hotelier', 'Modern Baseball',
+      'Foxing', 'Citizen', 'Balance and Composure',
+      'Title Fight', 'Basement', 'Turnover', 'Nothing',
+      'Movements', 'Counterparts', 'Being as an Ocean',
+      'Alexisonfire', 'City and Colour', 'Dallas Green',
+      'Saosin', 'Circa Survive', 'The Sound of Animals Fighting',
+      'Underoath', 'The Almost', 'Aaron Gillespie',
+      'The Fall of Troy', 'Chiodos', 'Dance Gavin Dance',
+      'A Lot Like Birds', 'Hail the Sun', 'Sianvar',
+      'Poison the Well', 'Hopesfall', 'As Cities Burn',
+      'Norma Jean', 'The Chariot', 'Every Time I Die',
+      'Cursive', 'The Good Life', 'Desaparecidos', 'Tim Kasher',
+      'Cap\'n Jazz', 'American Football', 'Owen', 'Joan of Arc',
+      'Mineral', 'The Gloria Record', 'Sunny Day Real Estate', 'The Fire Theft',
+      'Texas Is the Reason', 'Sense Field', 'Samiam', 'Jawbreaker',
+      'Hot Water Music', 'The Draft', 'Chuck Ragan', 'Drag the River',
+      
+      // Math Rock / Experimental Rock (NEW SECTION)
+      'Don Caballero', 'Battles', 'Lynx', 'Toe',
+      'Tera Melos', 'Hella', 'Zach Hill', 'Death Grips',
+      'This Town Needs Guns', 'TTNG', 'Piglet',
+      'Totorro', 'Lite', 'Mouse on the Keys', 'tricot',
+      'American Football', 'Owls', 'Cap\'n Jazz', 'Joan of Arc',
+      'Slint', 'Spiderland', 'The For Carnation', 'David Pajo',
+      'Shellac', 'Tortoise', 'The Sea and Cake', 'Chicago Underground Duo',
+      'Rodan', 'June of 44', 'Shipping News', 'Rachel\'s',
+      'Sweep the Leg Johnny', 'Breadwinner', 'Keelhaul',
+      'Dazzling Killmen', 'Craw', 'Storm & Stress',
+      'U.S. Maple', 'Gastr del Sol', 'The Flying Luttenbachers',
+      'Ruins', 'Boredoms', 'Melt-Banana', 'Zeni Geva',
+      
+      // Noise Rock / No Wave (NEW SECTION)
+      'The Jesus Lizard', 'David Yow', 'Scratch Acid',
+      'Big Black', 'Shellac', 'Rapeman', 'Steve Albini',
+      'Swans', 'Angels of Light', 'Michael Gira', 'Jarboe',
+      'Sonic Youth', 'Thurston Moore', 'Lee Ranaldo',
+      'The Birthday Party', 'Nick Cave', 'Rowland S. Howard',
+      'Unsane', 'Helmet', 'Melvins', 'Buzz Osborne',
+      'Butthole Surfers', 'Tad', 'Steel Pole Bath Tub',
+      'Tar', 'Cherubs', 'Hammerhead', 'Killdozer',
+      'Flip Burgers', 'Cows', 'Milk Cult', 'Rusted Root',
+      'DNA', 'Mars', 'Teenage Jesus and the Jerks', 'Lydia Lunch',
+      'Glenn Branca', 'Rhys Chatham', 'Band of Susans',
+      
+      // Post-Punk / New Wave (CLASSICS)
+      'Talking Heads', 'David Byrne', 'Tom Tom Club', 'The Smiths', 'Morrissey',
+      'Joy Division', 'New Order', 'Electronic',
+      'Bauhaus', 'Peter Murphy', 'Love and Rockets',
+      'Siouxsie and the Banshees', 'The Cure', 'Robert Smith',
+      'Echo & the Bunnymen', 'The Teardrop Explodes',
+      
+      // ═══════════════════════════════════════════════════════════════
+      // ALTERNATIVE METAL (ONLY alternative metal and nu-metal)
+      // ═══════════════════════════════════════════════════════════════
+      // Nu Metal / Alternative Metal (COMPLETE)
+      'Deftones', 'Chino Moreno', 'Team Sleep', 'Crosses', 'Palms',
+      'System of a Down', 'Serj Tankian', 'Scars on Broadway', 'Daron Malakian',
+      'Tool', 'Maynard James Keenan', 'A Perfect Circle', 'Puscifer',
+      'Rage Against the Machine', 'Audioslave', 'Prophets of Rage',
+      'Korn', 'Jonathan Davis', 'Limp Bizkit', 'Fred Durst', 'Linkin Park',
+      'Incubus', 'Brandon Boyd', 'Chevelle', 'Mudvayne', 'Sevendust',
+      'Glassjaw', 'Daryl Palumbo', 'Head Automatica', 'Far', 'Jonah Matranga', 'onelinedrawing',
+      'Quicksand', 'Walter Schreifels', 'Helmet', 'Page Hamilton',
+      
+      // Stoner Rock / Doom (EXPANDED)
+      'Sleep', 'Matt Pike', 'High on Fire', 'Om', 'Al Cisneros', 'Shrinebuilder',
+      'Kyuss', 'John Garcia', 'Queens of the Stone Age', 'Josh Homme', 'Eagles of Death Metal',
+      'Fu Manchu', 'Scott Hill', 'Nebula', 'Mondo Generator', 'Hermano',
+      'Mastodon', 'Brent Hinds', 'Troy Sanders', 'Baroness', 'John Baizley',
+      'Kylesa', 'Phillip Cope', 'Torche', 'The Sword', 'Red Fang', 'Black Tusk',
+      'Electric Wizard', 'Jus Oborn', 'Yob', 'Mike Scheidt', 'Weedeater', 'Dixie Dave',
+      'Eyehategod', 'Mike IX Williams', 'Crowbar', 'Kirk Windstein', 'Down', 'Acid Bath',
+      'All Them Witches', 'Earthless', 'Kadavar', 'Uncle Acid', 'Graveyard', 'Wo Fat',
+      'Orange Goblin', 'Conan', 'Monolord', 'Bongzilla', 'Bongripper',
+      'Windhand', 'Pallbearer', 'Khemmis', 'Spirit Adrift', 'Cough',
+      'Thou', 'The Obsessed', 'Scott Reagers', 'Saint Vitus', 'Pentagram',
+      'Trouble', 'Candlemass', 'Cathedral', 'Reverend Bizarre',
+      'Dopethrone', 'Warhorse', 'Goatsnake', 'Lowrider', 'Truckfighters',
+      'Greenleaf', 'Dozer', 'Grand Magus', 'Spiritual Beggars',
+      'Colour Haze', 'Elder', 'Mars Red Sky', 'Monkey3',
+      
+      // Post-Metal / Atmospheric (LEGENDARY)
+      'Isis', 'Aaron Turner', 'House of Low Culture', 'Mamiffer', 'Sumac',
+      'Neurosis', 'Steve Von Till', 'Scott Kelly', 'Tribes of Neurot', 'Corrections House',
+      'Pelican', 'Trevor de Brauw', 'Russian Circles', 'Intronaut', 'Giant Squid',
+      'Old Man Gloom', 'Nate Newton', 'Cave In', 'Cult of Luna', 'The Ocean', 'Amenra',
+      'Rosetta', 'Mouth of the Architect', 'Baptists', 'KEN mode', 'Oxbow', 'Eugene Robinson',
+      'Godflesh', 'Jesu', 'Justin Broadrick', 'JK Flesh',
+      'Neurosis', 'Year of No Light', 'Dirge', 'Callisto',
+      'Downfall of Gaia', 'Zatokrev', 'Lightbearer', 'Fall of Efrafa',
+      'Ancst', 'Kowloon Walled City', 'Buried at Sea', 'Nortt',
+      'Les Discrets', 'Alcest', 'Amesoeurs', 'Lantlôs', 'Deafheaven',
+      'Altar of Plagues', 'Wolves in the Throne Room', 'Panopticon',
+      'Agalloch', 'Fen', 'Primordial', 'Negură Bunget',
+      
+      // Metalcore / Post-Hardcore Metal (SELECTIVE - keep it alternative)
+      'Converge', 'Jacob Bannon', 'Cave In', 'Old Man Gloom', 'Mutoid Man',
+      'Every Time I Die', 'The Chariot', 'Norma Jean', 'Botch', 'Coalesce',
+      'The Dillinger Escape Plan', 'Dillinger Escape Plan', 'Dimitri Minakakis',
+      'Poison the Well', 'Underoath', 'Thrice', 'Dustin Kensrue', 'The Alchemy Index',
+      'Darkest Hour', 'Shai Hulud', 'Misery Signals', 'Architects',
+      'August Burns Red', 'Killswitch Engage', 'All That Remains',
+      'Hatebreed', 'Terror', 'Madball', 'Agnostic Front',
+      'Earth Crisis', 'Integrity', 'Ringworm', 'Turmoil',
+      'Code Orange', 'Knocked Loose', 'Jesus Piece', 'Year of the Knife',
+      'Vein', 'Jesus Piece', 'Employed to Serve', 'Employed to Serve',
+      
+      // Experimental / Avant-Garde Metal (Mike Patton Universe)
+      'Mr. Bungle', 'Fantômas', 'Tomahawk', 'Peeping Tom', 'Lovage',
+      'Mike Patton', 'Faith No More', 'Ipecac Recordings',
+      'Secret Chiefs 3', 'Trey Spruance', 'Kayo Dot', 'Toby Driver', 'Maudlin of the Well',
+      'Sleepytime Gorilla Museum', 'Free Salamander Exhibit', 'uneXpect',
+      'Diablo Swing Orchestra', 'Solefald', 'Sigh', 'Igorrr',
+      'Unexpect', 'Pin-Up Went Down', 'Carnival in Coal', 'Thy Catafalque',
+      
+      // Progressive Metal (ACCESSIBLE)
+      'Between the Buried and Me', 'Tommy Rogers', 'Protest the Hero',
+      'Meshuggah', 'Fredrik Thordendal', 'Gojira', 'Joe Duplantier',
+      'Opeth', 'Mikael Åkerfeldt', 'Storm Corrosion', 'Cynic', 'Paul Masvidal',
+      'Animals as Leaders', 'Tosin Abasi', 'Intervals', 'Plini',
+      'Periphery', 'Tesseract', 'Monuments', 'Sikth',
+      'Haken', 'Leprous', 'Caligula\'s Horse', 'Textures',
+      'Car Bomb', 'The Contortionist', 'Vildhjarta', 'Humanity\'s Last Breath',
+      'Gorguts', 'Ulcerate', 'Artificial Brain', 'Pyrrhon',
+      
+      // Hardcore Punk / Crossover (LEGENDS)
+      'Black Flag', 'Henry Rollins', 'Greg Ginn', 'Rollins Band',
+      'Bad Brains', 'H.R.', 'Minor Threat', 'Fugazi', 'Circle Jerks', 'Keith Morris',
+      'Dead Kennedys', 'Jello Biafra', 'Descendents', 'Milo Aukerman', 'ALL',
+      'Gorilla Biscuits', 'Civ', 'Youth of Today', 'Shelter', 'Quicksand'
     ];
   }
 
@@ -9830,66 +10348,20 @@ ${provider === 'openai' ? '📊 Model: gpt-4o-mini' : ''}`;
       // Get curated artists
       const curatedArtists = this.getAllMusicCuratedArtists();
       
-      // Filter out pop/boy band/electronic artists from learned list (keep hip hop/rock/metal only)
-      const popBlacklist = ['nsync', 'n sync', '*nsync', 'backstreet boys', 'bsb', 'justin timberlake', 
-                            'britney spears', 'christina aguilera', 'spice girls', 'one direction',
-                            'jonas brothers', 'ariana grande', 'taylor swift', 'katy perry', 'miley cyrus',
-                            'selena gomez', 'demi lovato', 'justin bieber', 'shawn mendes', 'ed sheeran',
-                            'maroon 5', 'imagine dragons', 'twenty one pilots', '21 pilots', 'alan walker',
-                            'marshmello', 'calvin harris', 'david guetta', 'avicii', 'tiesto', 'skrillex',
-                            'diplo', 'zedd', 'kygo', 'martin garrix', 'chainsmokers'];
+      // USER REQUEST: Do NOT play learned artists - only use them for genre detection
+      // The bot learns from users to understand the room vibe, but plays DIFFERENT artists
+      const allArtists = [...curatedArtists];
       
-      // Add learned artists from users (excluding pop/electronic)
-      const learnedArtistsList = Array.from(this.learnedArtists).filter(artist => {
-        const artistLower = artist.toLowerCase();
-        return !popBlacklist.some(blocked => artistLower.includes(blocked));
-      });
-      
-      // Get artists that current human DJs have played before
-      const currentDJsArtists = new Set();
-      currentDJsSongs.forEach(entry => {
-        if (entry.artist) {
-          currentDJsArtists.add(entry.artist.toLowerCase());
-        }
-      });
-      
-      if (currentDJsArtists.size > 0) {
-        this.log(`🎯 Current DJs have played ${currentDJsArtists.size} unique artists: ${Array.from(currentDJsArtists).slice(0, 5).join(', ')}${currentDJsArtists.size > 5 ? '...' : ''}`);
+      const learnedCount = this.learnedArtists.size;
+      if (learnedCount > 0) {
+        this.log(`📚 Artist pool: ${curatedArtists.length} curated artists (learned ${learnedCount} artists from users for vibe detection only)`);
       }
       
-      const allArtists = [...curatedArtists, ...learnedArtistsList];
-      
-      if (learnedArtistsList.length > 0) {
-        const filteredCount = this.learnedArtists.size - learnedArtistsList.length;
-        this.log(`📚 Artist pool: ${curatedArtists.length} curated + ${learnedArtistsList.length} learned (${filteredCount} pop/electronic filtered) = ${allArtists.length} total`);
-      }
-      
-      // PRIORITIZE: Pick from artists that current DJs have played (if we have that data)
-      let availableArtists = [];
-      if (currentDJsArtists.size > 0) {
-        // First try: Artists the current DJs have actually played
-        availableArtists = allArtists.filter(artist => 
-          currentDJsArtists.has(artist.toLowerCase()) &&
-          !this.recentlyUsedArtists.includes(artist.toLowerCase()) &&
-          artist.toLowerCase() !== this.lastPlayedArtist?.toLowerCase()
-        );
-        
-        if (availableArtists.length > 0) {
-          this.log(`🎯 Found ${availableArtists.length} artists that current DJs have played - prioritizing their tastes!`);
-        }
-      }
-      
-      // Fallback: If no matches from current DJs' history, use all available artists
-      if (availableArtists.length === 0) {
-        availableArtists = allArtists.filter(artist => 
-          !this.recentlyUsedArtists.includes(artist.toLowerCase()) &&
-          artist.toLowerCase() !== this.lastPlayedArtist?.toLowerCase()
-        );
-        
-        if (currentDJsArtists.size > 0) {
-          this.log(`⚠️ No available artists from current DJs' history - using general pool (${availableArtists.length} artists)`);
-        }
-      }
+      // Pick from available curated artists (avoiding recently used)
+      const availableArtists = allArtists.filter(artist => 
+        !this.recentlyUsedArtists.includes(artist.toLowerCase()) &&
+        artist.toLowerCase() !== this.lastPlayedArtist?.toLowerCase()
+      );
       
       if (availableArtists.length === 0) {
         if (this.verboseMode) this.log('🔄 All artists recently used, resetting...');

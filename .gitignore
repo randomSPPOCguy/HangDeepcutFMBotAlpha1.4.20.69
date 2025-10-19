@@ -1,41 +1,29 @@
-# Node modules
+# Dependencies
 node_modules/
-**/node_modules/
+package-lock.json
 
-# Environment files with tokens (SECURITY - DO NOT COMMIT)
+# Environment variables (SENSITIVE - DO NOT COMMIT)
+.env
 *.env
-config.env
 hang-fm-config.env
-.env.*
 
-# Local data files (user-specific)
-user-stats.json
-song-stats.json
-user-artists.json
-bot-learned-artists.json
-bot-strikes.json
-uptime.json
+# Bot data files (contains user data)
+*.json
+!package.json
 
 # Logs
 *.log
-npm-debug.log*
+logs/
 
 # OS files
 .DS_Store
 Thumbs.db
-desktop.ini
 
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
 
-# Temporary files
+# Temp files
 *.tmp
 *.temp
-*.zip
-
-# Package locks (optional - some prefer to commit these)
-# package-lock.json
-
+.cursor/

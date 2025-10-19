@@ -36,7 +36,9 @@ class Config {
     // Bot User Token & IDs
     this.botUserToken = process.env.BOT_USER_TOKEN;
     this.cometChatAuth = process.env.COMETCHAT_AUTH;
-    this.cometChatApiKey = process.env.COMETCHAT_API_KEY;
+    this.cometChatApiKey = process.env.COMETCHAT_API_KEY; // App ID in this project
+    // Alias for modules that expect 'cometChatAppId'
+    this.cometChatAppId = process.env.COMETCHAT_APP_ID || this.cometChatApiKey;
     this.userId = process.env.USER_ID;
     this.roomId = process.env.ROOM_ID;
     
@@ -54,24 +56,25 @@ class Config {
     this.userGreet = process.env.USER_GREET === 'true';
     this.userGreetMessage = process.env.USER_GREET_MESSAGE || 'Welcome {name}!';
     
-    // AI Provider Configuration
-    this.currentProvider = process.env.AI_PROVIDER || 'gemini';
+    // AI Provider Configuration (per ChatGPT spec)
+    this.aiProvider = process.env.AI_PROVIDER || 'off';
+    this.aiTemperature = Number(process.env.AI_TEMPERATURE ?? 0.6);
+    this.aiMaxTokens = Number(process.env.AI_MAX_TOKENS ?? 256);
     
     // OpenAI
     this.openaiApiKey = process.env.OPENAI_API_KEY;
-    this.openaiEnabled = process.env.OPENAI_ENABLED !== 'false';
     this.openaiModel = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    this.openaiBaseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
     
     // Gemini
     this.geminiApiKey = process.env.GEMINI_API_KEY;
-    this.geminiEnabled = process.env.GEMINI_ENABLED !== 'false';
-    this.geminiModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    this.geminiModel = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    this.geminiBaseUrl = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
     
     // HuggingFace
-    this.huggingfaceApiKey = process.env.HUGGINGFACE_API_KEY;
-    this.huggingfaceEnabled = process.env.HUGGINGFACE_ENABLED !== 'false';
-    this.huggingfaceModel = process.env.HUGGINGFACE_MODEL || 'meta-llama/Llama-3.2-3B-Instruct';
-    this.huggingfaceFallbackModel = process.env.HUGGINGFACE_FALLBACK_MODEL || 'mistralai/Mistral-7B-Instruct-v0.2';
+    this.hfApiKey = process.env.HUGGINGFACE_API_KEY;
+    this.hfModel = process.env.HUGGINGFACE_MODEL || 'mistralai/Mixtral-8x7B-Instruct-v0.1';
+    this.hfBaseUrl = process.env.HUGGINGFACE_BASE_URL || 'https://api-inference.huggingface.co';
     
     // Music Research APIs
     this.discogsToken = process.env.DISCOGS_TOKEN;
@@ -111,10 +114,18 @@ class Config {
     this.enableConversationMemory = process.env.ENABLE_CONVERSATION_MEMORY === 'true';
     this.userMemoryDuration = parseInt(process.env.USER_MEMORY_DURATION) || 86400;
     
-    // Auto Stage Management
+    // Auto Stage Management & Discovery (ChatGPT5 spec)
     this.autoStageManagement = true;
     this.minDJsForBot = 3;
     this.maxDJsForBot = 4;
+    this.startGlued = process.env.START_GLUED !== 'false'; // default true
+    this.autoHop = process.env.AUTO_HOP !== 'false'; // default true
+    this.discoveryWhileGlued = process.env.DISCOVERY_WHILE_GLUED !== 'false'; // default true
+    this.discoveryPeriodMs = parseInt(process.env.DISCOVERY_PERIOD_MS) || 25000;
+    this.announceDiscovery = process.env.ANNOUNCE_DISCOVERY === 'true'; // default false
+    
+    // CometChat HTTP API (for fallback)
+    this.cometChatBaseUrl = process.env.COMETCHAT_BASE_URL || `https://${this.cometChatApiKey}.apiclient-us.cometchat.io`;
     
     console.log(`📊 [MODULAR] Data files will be shared from: ${projectRoot}`);
   }

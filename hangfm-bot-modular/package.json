@@ -14,7 +14,7 @@
     "fast-json-patch": "^3.1.1",
     "socket.io-client": "^4.7.4",
     "ttfm-socket": "^1.6.10",
-    "ws": "^8.14.2"
+    "ws": "^8.18.3"
   },
   "keywords": [
     "hang.fm",
@@ -25,4 +25,3 @@
   "author": "",
   "license": "MIT"
 }
-

@@ -185,21 +185,61 @@ Response:`;
   }
 
   switchProvider(providerName) {
+    // Map 'auto' to 'gemini' by default (per ChatGPT spec)
+    if (providerName === 'auto') {
+      this.currentProvider = 'gemini';
+      this.aiEnabled = true;
+      return true;
+    }
+    
     if (this.providers.has(providerName)) {
       this.currentProvider = providerName;
       this.aiEnabled = true;
       return true;
     }
+    
     if (providerName === 'off') {
       this.aiEnabled = false;
       return true;
     }
-    if (providerName === 'auto') {
-      this.currentProvider = 'auto';
-      this.aiEnabled = true;
-      return true;
-    }
+    
     return false;
+  }
+  
+  isEnabled() {
+    return this.aiEnabled && this.aiChatEnabled;
+  }
+  
+  async generateReply(text, context = {}) {
+    // Simplified reply generation for chat mentions
+    try {
+      const userId = context.userId || 'unknown';
+      const userName = context.userName || 'User';
+      
+      // Build simple prompt
+      const prompt = `You are a music bot. User "${userName}" said: "${text}". Respond briefly (1-2 sentences).`;
+      
+      // Use current provider
+      let response = null;
+      
+      if (this.currentProvider === 'gemini') {
+        response = await this.providers.get('gemini').generate(prompt);
+      } else if (this.currentProvider === 'openai') {
+        response = await this.providers.get('openai').generate(prompt);
+      } else if (this.currentProvider === 'huggingface') {
+        response = await this.providers.get('huggingface').generate(prompt);
+      }
+      
+      // Truncate to max tokens
+      if (response && response.length > this.config.aiMaxTokens) {
+        response = response.substring(0, this.config.aiMaxTokens) + '...';
+      }
+      
+      return response;
+    } catch (error) {
+      this.logger.error(`AI reply error: ${error.message}`);
+      return null;
+    }
   }
 
   toggleAI() {
