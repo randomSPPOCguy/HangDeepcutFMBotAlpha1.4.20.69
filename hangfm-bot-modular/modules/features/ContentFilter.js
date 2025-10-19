@@ -8,11 +8,17 @@ class ContentFilter {
     this.enabled = true;
   }
 
+  _normalizeUnsafe(res) {
+    if (typeof res === 'string') return res.trim().toUpperCase() === 'UNSAFE';
+    return Boolean(res); // if provider returns boolean: true means UNSAFE
+  }
+
   async checkHatefulContent(message) {
-    if (!this.enabled) return false;
+    if (!this.enabled) return false; // treat disabled as SAFE (not unsafe)
     
     try {
-      return await this.ai.checkHatefulContent(message);
+      const res = await this.ai.checkHatefulContent(message);
+      return this._normalizeUnsafe(res); // true => UNSAFE
     } catch (error) {
       this.logger.error(`Content check error: ${error.message}`);
       return false; // Default to safe on error
@@ -20,7 +26,7 @@ class ContentFilter {
   }
 
   async checkSongContent(artist, track) {
-    if (!this.enabled) return true;
+    if (!this.enabled) return true; // SAFE when disabled
     
     try {
       const prompt = `You are a content moderation system. Analyze this song and determine if it contains hateful, discriminatory, or offensive content.
@@ -42,8 +48,9 @@ If you're unsure, respond with "SAFE".
 
 Response:`;
 
-      const response = await this.ai.checkHatefulContent(prompt);
-      return !response; // Returns true if safe, false if unsafe
+      const res = await this.ai.checkHatefulContent(prompt);
+      const isUnsafe = this._normalizeUnsafe(res);
+      return !isUnsafe; // true => SAFE
     } catch (error) {
       this.logger.error(`Song content check error: ${error.message}`);
       return true; // Default to safe
@@ -52,31 +59,42 @@ Response:`;
 
   async checkLinkSafety(url) {
     try {
+      const allowedSchemes = new Set(['http:', 'https:']);
       const safeDomains = [
         'youtube.com', 'youtu.be', 'spotify.com', 'soundcloud.com',
-        'bandcamp.com', 'giphy.com', 'tenor.com', 'twitter.com',
+        'bandcamp.com', 'giphy.com', 'tenor.com', 'twitter.com', 'x.com',
         'instagram.com', 'reddit.com', 'discogs.com', 'last.fm',
         'wikipedia.org', 'hang.fm', 'tt.fm'
       ];
-      
       const suspiciousPatterns = [
         /bit\.ly|tinyurl|goo\.gl/i,
         /\.ru\b|\.cn\b/i,
         /discord\.gg/i,
-        /\.exe|\.dmg|\.apk|\.zip/i
+        /\.(exe|dmg|apk|zip|scr|bat|ps1)(\b|$)/i
       ];
-      
-      const urlObj = new URL(url);
-      const domain = urlObj.hostname.replace('www.', '');
-      
-      const isWhitelisted = safeDomains.some(safeDomain => domain.includes(safeDomain));
-      if (isWhitelisted) return false;
-      
-      const hasSuspicious = suspiciousPatterns.some(pattern => pattern.test(url));
-      return hasSuspicious;
+
+      const u = new URL(url);
+
+      // 1) scheme allow-list
+      if (!allowedSchemes.has(u.protocol)) return true; // suspicious
+
+      // 2) strict domain match: exact or subdomain of safelist
+      const domain = u.hostname.replace(/^www\./, '').toLowerCase();
+      const isWhitelisted = safeDomains.some(sd =>
+        domain === sd || domain.endsWith('.' + sd)
+      );
+      if (isWhitelisted) return false; // safe
+
+      // 3) obvious suspicious patterns
+      if (suspiciousPatterns.some(rx => rx.test(url))) return true;
+
+      // 4) data/javascript guards (belt-and-suspenders)
+      if (/^(javascript:|data:)/i.test(url)) return true;
+
+      return false; // default: not obviously suspicious
     } catch (error) {
       this.logger.error(`Link safety check error: ${error.message}`);
-      return false;
+      return false; // Default to safe on parse error
     }
   }
 
