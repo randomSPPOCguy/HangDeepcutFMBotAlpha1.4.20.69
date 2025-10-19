@@ -1,4 +1,4 @@
-/* hang-fm-bot.js */
+/* hang-fm-bot.js - MODULAR VERSION WITH COMETCHAT */
 'use strict';
 
 const fs = require('fs');
@@ -16,7 +16,7 @@ const log = {
   info:  (...a) => console.log(`${ts()} INFO `, ...a),
   warn:  (...a) => console.warn(`${ts()} WARN `, ...a),
   error: (...a) => console.error(`${ts()} ERROR`, ...a),
-  line:  (...a) => console.log(`${ts()} LOG  `, ...a),
+  log:   (...a) => console.log(`${ts()} LOG  `, ...a),
 };
 
 // ---------- load env (without printing any secrets) ----------
@@ -25,7 +25,7 @@ const log = {
   const candidates = [
     process.env.HANGFM_ENV_PATH && String(process.env.HANGFM_ENV_PATH),
     path.resolve(process.cwd(), '.env'),
-    'C:\\Users\\markq\\hang-fm-config.env',
+    path.resolve(__dirname, '..', 'hang-fm-config.env'),
   ].filter(Boolean);
 
   let usedPath = null;
@@ -41,99 +41,207 @@ const log = {
   if (!usedPath) {
     dotenv.config(); // fallback to default .env if present
     log.info('Booting Hang.fm Modular…');
-    log.line('🔧 [MODULAR] Loading config from: default .env (if present)');
+    log.log('🔧 [MODULAR] Loading config from: default .env (if present)');
   } else {
     log.info('Booting Hang.fm Modular…');
-    log.line(`🔧 [MODULAR] Loading config from: ${usedPath}`);
+    log.log(`🔧 [MODULAR] Loading config from: ${usedPath}`);
     try {
-      log.line(`📊 [MODULAR] Data files will be shared from: ${path.dirname(usedPath)}`);
+      log.log(`📊 [MODULAR] Data files will be shared from: ${path.dirname(usedPath)}`);
     } catch {
       /* noop */
     }
   }
 })();
 
-// ---------- build runtime config ----------
-const runtimeConfig = {
-  env: process.env.NODE_ENV || 'dev',
-  roomId: process.env.ROOM_ID || '',
-  botName: process.env.BOT_NAME || 'BOT',
-  aiProvider: process.env.AI_PROVIDER || 'gemini',
-  websocketUrl: process.env.WEBSOCKET_URL || '',
-  apiBaseUrl: process.env.API_BASE_URL || '',
-  sendHeartbeat: String(process.env.SEND_HEARTBEAT || 'true').toLowerCase() === 'true',
-  heartbeatInterval: Number(process.env.HEARTBEAT_INTERVAL || 30000),
-  autoJoinRoom: String(process.env.AUTO_JOIN_ROOM || 'true').toLowerCase() === 'true',
-  bootGreet: String(process.env.BOOT_GREET || 'true').toLowerCase() === 'true',
-  bootGreetMessage: process.env.BOOT_GREET_MESSAGE || 'BOT Online 🦾🤖',
-  verbose: String(process.env.VERBOSE_MODE || 'false').toLowerCase() === 'true',
-  debug: String(process.env.DEBUG || 'false').toLowerCase() === 'true',
-};
+// ---------- Import modules ----------
+const Config = require('./modules/core/Config');
+const SocketManager = require('./modules/connection/SocketManager');
+const CometChatManager = require('./modules/connection/CometChatManager');
+const EventHandler = require('./modules/handlers/EventHandler');
+const CommandHandler = require('./modules/handlers/CommandHandler');
+const AdminCommandHandler = require('./modules/handlers/AdminCommandHandler');
+const MusicSelector = require('./modules/music/MusicSelector');
+const QueueManager = require('./modules/music/QueueManager');
+const StatsManager = require('./modules/stats/StatsManager');
+const AFKDetector = require('./modules/features/AFKDetector');
+const StageManager = require('./modules/features/StageManager');
+const SpamProtection = require('./modules/utils/SpamProtection');
+const AIManager = require('./modules/ai/AIManager');
 
-log.info('Config summary:', JSON.stringify({
-  env: runtimeConfig.env,
-  roomId: runtimeConfig.roomId ? '(set)' : '',
-  botName: runtimeConfig.botName,
-  aiProvider: runtimeConfig.aiProvider,
-}));
-
-// ---------- wire up bot ----------
-const { createSocketClient } = require('./socket/SocketClient');
-const Bot = require('./core/Bot');
-
+// ---------- Main ----------
 (async function main() {
   try {
-    log.line('📡 Creating SocketClient...');
-    const socketClient = createSocketClient({
-      url: runtimeConfig.websocketUrl,
-      headers: {
-        // Only auth header; never logged.
-        Authorization: process.env.BOT_USER_TOKEN ? `Bearer ${process.env.BOT_USER_TOKEN}` : undefined,
-      },
-    });
-    log.line('✅ SocketClient created');
-
-    const bot = new Bot({
-      socketClient,
-      config: runtimeConfig,
-      http: {
-        baseUrl: runtimeConfig.apiBaseUrl,
-        token: process.env.BOT_USER_TOKEN || '',
-      },
+    // Load config
+    const config = new Config();
+    
+    log.info('Config summary:', {
+      env: config.env,
+      roomId: config.roomId,
+      botName: config.botName,
+      aiProvider: config.aiProvider
     });
 
-    // Connect socket before starting the bot loops
+    // Create logger adapter for modules
+    const logger = {
+      debug: log.debug,
+      info: log.info,
+      warn: log.warn,
+      error: log.error,
+      log: log.log
+    };
+
+    // Initialize Socket Manager
+    log.log('📡 Creating SocketClient...');
+    const socket = new SocketManager({
+      url: config.websocketUrl,
+      token: config.botToken,
+      roomId: config.roomId
+    }, logger);
+    log.log('✅ SocketClient created');
+
+    // Initialize CometChat Manager
+    log.info('Initializing CometChat…');
+    const chat = new CometChatManager({
+      cometChatApiKey: config.cometChatApiKey,
+      cometChatAuth: config.cometChatAuth,
+      userId: config.userId,
+      roomId: config.roomId,
+      botName: config.botName,
+      botAvatar: config.botAvatar,
+      chatAvatarId: config.chatAvatarId
+    }, logger);
+
+    // Connect to CometChat
+    await chat.connect();
+    log.info('CometChat initialized.');
+
+    // Initialize other managers
+    const spam = new SpamProtection(logger);
+    const stats = new StatsManager(config, logger);
+    const music = new MusicSelector(config, logger);
+    const queue = new QueueManager(config, logger);
+    const afk = new AFKDetector(config, logger);
+    const stage = new StageManager(config, logger);
+    const ai = new AIManager(config, logger, spam);
+
+    // Create bot object (simplified - just a container for modules)
+    const bot = {
+      config,
+      logger,
+      socket,
+      chat,
+      stats,
+      music,
+      queue,
+      afk,
+      stage,
+      spam,
+      ai,
+      glued: config.startGlued || true
+    };
+
+    // Initialize handlers
+    const events = new EventHandler(bot, logger);
+    const commands = new CommandHandler(bot, logger);
+    const admin = new AdminCommandHandler(bot, logger);
+
+    bot.events = events;
+    bot.commands = commands;
+    bot.admin = admin;
+
+    // Connect socket
     log.info('Connecting socket…');
     try {
-      await socketClient.connect();
-      if (socketClient.isConnected()) {
-        log.info(`Socket connected${runtimeConfig.websocketUrl ? '' : ' (mock, no URL provided).'}`);
+      await socket.connect();
+      if (socket.isConnected && socket.isConnected()) {
+        log.info('Socket connected.');
       } else {
-        log.warn('Socket not connected; will rely on HTTP polling if API_BASE_URL is set.');
+        log.warn('Socket not connected; will rely on HTTP polling if available.');
       }
     } catch (e) {
-      log.warn('Socket failed to connect; bot will fall back to HTTP polling if available.', e?.message || e);
+      log.warn('Socket failed to connect; bot will fall back to HTTP polling.', e?.message || e);
     }
 
-    await bot.start();
+    // Wire up event handlers
+    log.info('Bot starting…');
+    
+    // Handle chat messages from CometChat
+    chat.onMessage((message) => {
+      try {
+        events.handleChatMessage(message);
+      } catch (err) {
+        logger.error('Error handling chat message:', err);
+      }
+    });
+
+    // Handle socket events
+    if (socket.on) {
+      socket.on('userJoined', (data) => events.handleUserJoined?.(data));
+      socket.on('userLeft', (data) => events.handleUserLeft?.(data));
+      socket.on('djAdded', (data) => events.handleDJAdded?.(data));
+      socket.on('djRemoved', (data) => events.handleDJRemoved?.(data));
+      socket.on('songStarted', (data) => events.handleSongStarted?.(data));
+      socket.on('songEnded', (data) => events.handlePlayedSong?.(data));
+      socket.on('upvote', (data) => events.handleUpvote?.(data));
+      socket.on('downvote', (data) => events.handleDownvote?.(data));
+    }
+
+    // Send boot greeting
+    const gluedText = bot.glued ? 'yes' : 'no';
+    await chat.sendMessage(config.roomId, `✅ **BOT online** (glued: ${gluedText})`);
+    log.info('Boot greeting sent.');
+
+    // Start periodic tasks
+    log.info(`🎯 Discovery loop active (every ${config.discoveryPeriodMs}ms).`);
+    if (config.discoveryWhileGlued || !bot.glued) {
+      setInterval(() => {
+        try {
+          // Trigger music discovery
+          if (music.discoverNewMusic) {
+            music.discoverNewMusic().catch(() => {});
+          }
+        } catch (err) {
+          logger.debug('Discovery tick error:', err.message);
+        }
+      }, config.discoveryPeriodMs || 25000);
+    }
+
+    // Start AFK check
+    if (afk.startMonitoring) {
+      afk.startMonitoring();
+    }
+
+    // Start stage management
+    if (stage.startManagement) {
+      stage.startManagement();
+    }
+
     log.info('Bot started.');
 
+    // Shutdown handler
     const shutdown = async (why) => {
       log.info(`Shutting down (${why})…`);
-      try { await bot.stop(); } catch {}
-      try { socketClient.close(); } catch {}
+      try { 
+        if (afk.stopMonitoring) afk.stopMonitoring(); 
+      } catch {}
+      try { 
+        if (stage.stopManagement) stage.stopManagement(); 
+      } catch {}
+      try { 
+        if (socket.close) socket.close(); 
+      } catch {}
+      try {
+        if (chat.close) chat.close();
+      } catch {}
       process.exit(0);
     };
+    
     process.on('SIGINT',  () => shutdown('SIGINT'));
     process.on('SIGTERM', () => shutdown('SIGTERM'));
+    
   } catch (err) {
     log.error('Fatal during startup:', err);
+    console.error(err.stack);
     process.exit(1);
   }
 })();
-
-
-
-
-
-
