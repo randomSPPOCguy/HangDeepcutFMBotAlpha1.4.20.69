@@ -197,8 +197,10 @@ const AIManager = require('./modules/ai/AIManager');
       }
     });
 
-    // Handle socket events
+    // Handle socket events with state management
     if (socket.on) {
+      const { applyPatch } = require('fast-json-patch');
+      
       // Connection monitoring
       socket.on('connected', () => {
         log.info('🔗 Socket connection established');
@@ -210,15 +212,82 @@ const AIManager = require('./modules/ai/AIManager');
         log.error(`❌ Socket error: ${err?.message || err}`);
       });
       
-      // Room events
-      socket.on('userJoined', (data) => events.handleUserJoined?.(data));
-      socket.on('userLeft', (data) => events.handleUserLeft?.(data));
-      socket.on('djAdded', (data) => events.handleDJAdded?.(data));
-      socket.on('djRemoved', (data) => events.handleDJRemoved?.(data));
-      socket.on('songStarted', (data) => events.handleSongStarted?.(data));
-      socket.on('songEnded', (data) => events.handlePlayedSong?.(data));
-      socket.on('upvote', (data) => events.handleUpvote?.(data));
-      socket.on('downvote', (data) => events.handleDownvote?.(data));
+      // Stateful messages (with state patches)
+      socket.on('statefulMessage', (message) => {
+        try {
+          // Apply state patch to keep state in sync
+          if (message.statePatch && socket.state) {
+            const result = applyPatch(socket.state, message.statePatch, true, false);
+            socket.updateState(result.newDocument);
+          }
+          
+          // Log and handle specific events
+          switch (message.name) {
+            case 'userJoined':
+              const joinedUser = message.statePatch?.[0]?.value?.userProfile?.name || 'Unknown';
+              log.log(`👋 ${joinedUser} joined the room`);
+              events.handleUserJoined?.(message);
+              break;
+            case 'userLeft':
+              const leftUser = message.statePatch?.[0]?.path?.split('/').pop() || 'Unknown';
+              log.log(`👋 User left the room`);
+              events.handleUserLeft?.(message);
+              break;
+            case 'addedDj':
+              const djName = message.statePatch?.find(p => p.path?.includes('userProfile'))?.value?.name || 'Unknown';
+              log.log(`🎧 ${djName} stepped up to DJ`);
+              events.handleDJAdded?.(message);
+              break;
+            case 'removedDj':
+              log.log(`🎧 DJ stepped down`);
+              events.handleDJRemoved?.(message);
+              break;
+            case 'playedSong':
+              const song = socket.state?.room?.nowPlaying;
+              if (song) {
+                log.log(`🎵 Now Playing: ${song.artistName} - ${song.trackName}`);
+              } else {
+                log.log(`⏸️  No song playing`);
+              }
+              events.handlePlayedSong?.(message);
+              break;
+            case 'updatedNextSong':
+              log.log(`🔄 DJ updated their next song`);
+              break;
+            case 'votedOnSong':
+              log.log(`👍 User voted on song`);
+              events.handleUpvote?.(message);
+              break;
+            default:
+              // Log other stateful messages for debugging
+              logger.debug(`📨 Stateful: ${message.name}`);
+          }
+        } catch (e) {
+          logger.error(`Error handling stateful message: ${e.message}`);
+        }
+      });
+      
+      // Stateless messages
+      socket.on('statelessMessage', (message) => {
+        try {
+          switch (message.name) {
+            case 'playedOneTimeAnimation':
+              const anim = message.params?.animation || 'unknown';
+              log.log(`✨ Animation: ${anim}`);
+              break;
+            case 'kickedFromRoom':
+              log.error(`🚫 Bot was kicked from room!`);
+              break;
+            case 'roomReset':
+              log.warn(`🔄 Room reset - reconnecting...`);
+              break;
+            default:
+              logger.debug(`📨 Stateless: ${message.name}`);
+          }
+        } catch (e) {
+          logger.error(`Error handling stateless message: ${e.message}`);
+        }
+      });
     }
 
     // Send boot greeting

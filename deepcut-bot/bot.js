@@ -10359,9 +10359,9 @@ ${provider === 'openai' ? '📊 Model: gpt-4o-mini' : ''}`;
       
       // Pick from available curated artists (avoiding recently used)
       const availableArtists = allArtists.filter(artist => 
-        !this.recentlyUsedArtists.includes(artist.toLowerCase()) &&
-        artist.toLowerCase() !== this.lastPlayedArtist?.toLowerCase()
-      );
+          !this.recentlyUsedArtists.includes(artist.toLowerCase()) &&
+          artist.toLowerCase() !== this.lastPlayedArtist?.toLowerCase()
+        );
       
       if (availableArtists.length === 0) {
         if (this.verboseMode) this.log('🔄 All artists recently used, resetting...');
