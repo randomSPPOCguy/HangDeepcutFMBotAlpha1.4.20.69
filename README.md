@@ -372,31 +372,48 @@ GEMINI_API_KEY=your_gemini_key
 
 ## 🚀 How to Run
 
-### Original Bot (WORKING)
+### ⚠️ IMPORTANT: Environment Setup
+
+The bot requires `hang-fm-config.env` in the project root with these critical variables:
+- `ROOM_ID` - The room UUID
+- `USER_ID` - The bot's user UUID
+- `BOT_USER_TOKEN` - Authentication token
+- `COMETCHAT_API_KEY` - CometChat app ID
+- `COMETCHAT_AUTH` - CometChat auth token
+- `WEBSOCKET_URL` - Hang.fm WebSocket URL (e.g., `https://socket.prod.tt.fm`)
+
+### Modular Bot (FIXED!)
+```bash
+cd "c:\Users\markq\Ultimate bot project\hangfm-bot-modular"
+node hang-fm-bot.js
+```
+
+**Expected Output:**
+```
+[DEBUG] 🔍 Searching for config in: ...
+[DEBUG] ✅ Found config file: C:\Users\markq\Ultimate bot project\hang-fm-config.env
+[DEBUG] ✅ All critical variables loaded
+[INFO]  Booting Hang.fm Modular…
+[LOG]   🔧 [MODULAR] Loading config from: C:\Users\markq\...\hang-fm-config.env
+[LOG]   📊 [MODULAR] Data files will be shared from: C:\Users\markq\Ultimate bot project
+[LOG]   📡 Creating SocketClient...
+[LOG]   ✅ SocketClient created
+[INFO]  Connecting socket…
+[INFO]  Socket connected.
+[INFO]  Initializing CometChat…
+[LOG]   💬 Connecting to CometChat...
+[LOG]   ✅ Joined CometChat group
+[LOG]   💬 Sent: ✅ **BOT online** (glued: yes)
+[INFO]  Bot started.
+```
+
+### Original Bot (WORKING - Reference)
 ```bash
 cd "c:\Users\markq\Ultimate bot project\hangfm-bot"
 node hang-fm-bot.js
 ```
 
 **Result:** Bot connects, greets in chat, responds to commands. ✅
-
-### Modular Bot (BROKEN)
-```bash
-cd "c:\Users\markq\Ultimate bot project\hangfm-bot-modular"
-node hang-fm-bot.js
-```
-
-**Result:** Bot connects, greets in chat, receives commands, but CANNOT respond. ❌
-
-**Console Output:**
-```
-[INFO] ✅ Connected to Hang.fm
-[INFO] ✅ Joined CometChat group
-[LOG]  💬 Sent: ✅ **BOT online** (glued: yes)  ← Greeting works!
-[LOG]  💬 sumguy: /commands                     ← Command received!
-[ERROR] ❌ Failed to send message: 400          ← Response FAILS!
-[ERROR] ❌ Response data: {"error":{"message":"Failed to validate..."}}
-```
 
 ---
 

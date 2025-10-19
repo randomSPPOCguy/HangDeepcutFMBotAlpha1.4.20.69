@@ -24,32 +24,53 @@ const log = {
   log.debug('dotenv loaded');
   const candidates = [
     process.env.HANGFM_ENV_PATH && String(process.env.HANGFM_ENV_PATH),
-    path.resolve(process.cwd(), '.env'),
-    path.resolve(__dirname, '..', 'hang-fm-config.env'),
+    path.resolve(__dirname, '..', 'hang-fm-config.env'),  // Parent dir first
+    path.resolve(process.cwd(), 'hang-fm-config.env'),    // Current working dir
+    path.resolve(process.cwd(), '.env'),                   // .env in cwd
+    path.resolve(__dirname, '.env'),                       // .env in module dir
   ].filter(Boolean);
+
+  log.debug(`🔍 Searching for config in: ${candidates.join(', ')}`);
 
   let usedPath = null;
   for (const p of candidates) {
     try {
       if (fs.existsSync(p)) {
+        log.debug(`✅ Found config file: ${p}`);
         dotenv.config({ path: p });
         usedPath = p;
         break;
+      } else {
+        log.debug(`❌ Not found: ${p}`);
       }
-    } catch {}
+    } catch (err) {
+      log.debug(`❌ Error checking ${p}: ${err.message}`);
+    }
   }
+  
+  log.info('Booting Hang.fm Modular…');
+  
   if (!usedPath) {
+    log.warn('⚠️  No config file found! Using environment variables or defaults.');
+    log.log('🔧 [MODULAR] Loading config from: environment variables');
     dotenv.config(); // fallback to default .env if present
-    log.info('Booting Hang.fm Modular…');
-    log.log('🔧 [MODULAR] Loading config from: default .env (if present)');
   } else {
-    log.info('Booting Hang.fm Modular…');
     log.log(`🔧 [MODULAR] Loading config from: ${usedPath}`);
     try {
       log.log(`📊 [MODULAR] Data files will be shared from: ${path.dirname(usedPath)}`);
     } catch {
       /* noop */
     }
+  }
+  
+  // Verify critical variables are loaded
+  const criticalVars = ['ROOM_ID', 'USER_ID', 'BOT_USER_TOKEN', 'COMETCHAT_API_KEY'];
+  const missing = criticalVars.filter(v => !process.env[v]);
+  if (missing.length > 0) {
+    log.error(`❌ MISSING CRITICAL VARIABLES: ${missing.join(', ')}`);
+    log.error('❌ Bot cannot start without these! Check your config file.');
+  } else {
+    log.debug(`✅ All critical variables loaded`);
   }
 })();
 
