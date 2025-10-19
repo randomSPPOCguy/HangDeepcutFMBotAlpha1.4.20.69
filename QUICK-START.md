@@ -25,7 +25,10 @@ node hangfm-bot-modular\hang-fm-bot.js
 
 ## 🤖 AI Features (ENABLED)
 
-The bot has **AI-powered chat** using Gemini (or OpenAI):
+The bot has **AI-powered chat** using Gemini (or OpenAI) with:
+- 🎭 **Mood Tracking** - Adapts personality based on how you treat it
+- 🧠 **Conversation Memory** - Remembers your last 5 exchanges
+- 🛡️ **Content Filtering** - Blocks links and inappropriate content
 
 **Trigger AI by saying:**
 - `hey bot, what's playing?`
@@ -35,8 +38,19 @@ The bot has **AI-powered chat** using Gemini (or OpenAI):
 **Keywords that trigger AI:**
 `bot`, `b0t`, `bot2`, `b0t2`, `@bot2`
 
-**AI Provider:** Gemini (set in `hang-fm-config.env`)
-- Can switch to OpenAI by changing `AI_PROVIDER=openai`
+**🎭 Mood Spectrum:**
+- Be **nice** → Bot is friendly and helpful
+- Be **neutral** → Bot is informative and straightforward
+- Be **rude** → Bot gets sarcastic and snarky
+
+**🧠 Memory:**
+- Bot remembers your last conversation
+- Context persists for 1 hour
+- Can reference previous questions
+
+**AI Provider:** Gemini 2.5 Flash (set in `hang-fm-config.env`)
+- Can switch to OpenAI: `AI_PROVIDER=openai`
+- Or HuggingFace: `AI_PROVIDER=huggingface`
 
 ## 👀 What to Look For
 
