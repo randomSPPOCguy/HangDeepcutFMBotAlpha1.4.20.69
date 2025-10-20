@@ -40,4 +40,4 @@ class CometChatManager {
   }
 }
 
-module.exports = new CometChatManager();
+module.exports = CometChatManager;
