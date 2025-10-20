@@ -5,14 +5,14 @@ if (typeof window === 'undefined') {
 }
 
 const { CometChat } = require('@cometchat-pro/chat');
-const Config = require('../core/Config');
-const Logger = require('../utils/Logger');
 
 class CometChatManager {
-  constructor() {
-    this.cometChatAppId = Config.COMETCHAT_APP_ID;
-    this.region = Config.COMETCHAT_REGION;
-    this.apiKey = Config.COMETCHAT_AUTH_KEY;
+  constructor(config, logger) {
+    this.config = config;
+    this.logger = logger || console;
+    this.cometChatAppId = config.cometChatAppId;
+    this.region = config.cometChatRegion;
+    this.apiKey = config.cometChatAuth;
   }
 
   async init() {
@@ -21,9 +21,9 @@ class CometChatManager {
         .subscribePresenceForAllUsers()
         .setRegion(this.region)
         .build());
-      Logger.info('[CometChat] Initialized successfully');
+      this.logger.info('[CometChat] Initialized successfully');
     } catch (error) {
-      Logger.error('[CometChat] Initialization failed:', error);
+      this.logger.error('[CometChat] Initialization failed:', error);
       throw error;
     }
   }
@@ -31,10 +31,10 @@ class CometChatManager {
   async login(userId) {
     try {
       const user = await CometChat.login(userId, this.apiKey);
-      Logger.info(`[CometChat] Logged in as ${user.getUid()}`);
+      this.logger.info(`[CometChat] Logged in as ${user.getUid()}`);
       return user;
     } catch (error) {
-      Logger.error('[CometChat] Login failed:', error);
+      this.logger.error('[CometChat] Login failed:', error);
       throw error;
     }
   }
