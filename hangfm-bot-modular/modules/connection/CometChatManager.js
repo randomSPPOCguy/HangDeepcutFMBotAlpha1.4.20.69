@@ -5,8 +5,8 @@ if (typeof window === 'undefined') {
 }
 
 const { CometChat } = require('@cometchat-pro/chat');
-const Config = require('../../Config');
-const Logger = require('../../utils/Logger');
+const Config = require('../core/Config');
+const Logger = require('../utils/Logger');
 
 class CometChatManager {
   constructor() {
