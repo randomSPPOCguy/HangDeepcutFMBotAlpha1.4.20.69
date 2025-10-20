@@ -38,6 +38,13 @@ class CometChatManager {
       throw error;
     }
   }
+
+  async connect() {
+    // Wrapper method that calls init() and login()
+    await this.init();
+    // Note: login is called separately in hang-fm-bot.js after connect
+    return true;
+  }
 }
 
 module.exports = CometChatManager;
