@@ -8,6 +8,7 @@
     "dev": "node --watch hang-fm-bot.js"
   },
   "dependencies": {
+    "@cometchat-pro/chat": "^3.0.7",
     "axios": "^1.12.2",
     "canvas": "^3.2.0",
     "dotenv": "^16.3.1",
