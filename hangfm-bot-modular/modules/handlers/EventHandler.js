@@ -1,7 +1,7 @@
 // EventHandler.js
 const AIManager = require('../ai/AIManager');
 const SpamProtection = require('../utils/SpamProtection');
-const ContentFilter = require('../utils/ContentFilter');
+const ContentFilter = require('../features/ContentFilter');
 
 const AI_KEYWORDS = [
   'bot',
