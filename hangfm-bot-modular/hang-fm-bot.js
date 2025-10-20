@@ -1,5 +1,10 @@
 // hangfm-bot-modular/hang-fm-bot.js - SIMPLIFIED ENTRY POINT
 
+// CRITICAL: CometChat SDK needs window object in Node.js
+if (typeof window === 'undefined') {
+  global.window = {};
+}
+
 const Config = require('./Config');
 const chat = require('./modules/connection/CometChatManager');
 const EventHandler = require('./modules/handlers/EventHandler');

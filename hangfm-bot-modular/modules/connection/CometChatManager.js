@@ -1,17 +1,8 @@
 // hangfm-bot-modular/modules/connection/CometChatManager.js
+// IMPORTANT: In Node, use classes from the CometChat namespace.
+// Do NOT destructure AppSettingsBuilder/TextMessage from require().
 
-// Node.js shim for CometChat SDK (browser-only SDK)
-if (typeof window === 'undefined') {
-  global.window = {};
-}
-
-const {
-  CometChat,
-  AppSettingsBuilder,
-  AppSettings,
-  TextMessage,
-} = require('@cometchat-pro/chat');
-
+const { CometChat } = require('@cometchat-pro/chat');
 const Config = require('../../Config');
 
 class CometChatManager {
@@ -28,11 +19,18 @@ class CometChatManager {
       throw new Error('[CometChat] Missing COMETCHAT_APP_ID or COMETCHAT_REGION');
     }
 
-    const settings = new AppSettingsBuilder()
-      .setRegion(COMETCHAT_REGION)
-      .subscribePresenceForAllUsers()
-      .autoEstablishSocketConnection(true)
-      .build();
+    // Build app settings using the namespace class
+    let builder = new CometChat.AppSettingsBuilder().setRegion(COMETCHAT_REGION);
+
+    // Keep these calls defensive across SDK minor versions
+    if (typeof builder.subscribePresenceForAllUsers === 'function') {
+      builder = builder.subscribePresenceForAllUsers();
+    }
+    if (typeof builder.autoEstablishSocketConnection === 'function') {
+      builder = builder.autoEstablishSocketConnection(true);
+    }
+
+    const settings = builder.build();
 
     try {
       await CometChat.init(COMETCHAT_APP_ID, settings);
@@ -48,7 +46,7 @@ class CometChatManager {
     await this.init();
     if (this._loggedIn) return;
 
-    // Prefer existing user session if present
+    // Reuse existing session if present
     try {
       const existing = await CometChat.getLoggedinUser();
       if (existing) {
@@ -56,11 +54,28 @@ class CometChatManager {
         console.log(`👤 [CometChat] already logged in as ${existing.getUid()}`);
         return;
       }
-    } catch {}
+    } catch {
+      // ignore
+    }
 
-    // Login with Auth Token (server generated token)
+    // Login with server-side Auth Token
     try {
-      const user = await CometChat.login(Config.COMETCHAT_AUTH);
+      // Most SDKs accept auth token via login(token). If not, fallback to loginWithAuthToken.
+      let user;
+      try {
+        user = await CometChat.login(Config.COMETCHAT_AUTH);
+      } catch (e) {
+        if (e && e.code === 'MISSING_PARAMETERS' || /parameter/i.test(String(e?.message))) {
+          if (typeof CometChat.loginWithAuthToken === 'function') {
+            user = await CometChat.loginWithAuthToken(Config.COMETCHAT_AUTH);
+          } else {
+            throw e;
+          }
+        } else {
+          throw e;
+        }
+      }
+
       console.log(`👤 [CometChat] logged in as ${user.getUid()}`);
       this._loggedIn = true;
     } catch (err) {
@@ -70,23 +85,25 @@ class CometChatManager {
   }
 
   /**
-   * Attach message listener for text/custom messages
+   * Add message listener (text/custom)
    */
   addMessageListener(listenerId, { onTextMessageReceived, onCustomMessageReceived }) {
     CometChat.addMessageListener(
       listenerId,
       new CometChat.MessageListener({
-        onTextMessageReceived: (m) => onTextMessageReceived && onTextMessageReceived(m),
-        onCustomMessageReceived: (m) => onCustomMessageReceived && onCustomMessageReceived(m),
+        onTextMessageReceived: (m) =>
+          typeof onTextMessageReceived === 'function' && onTextMessageReceived(m),
+        onCustomMessageReceived: (m) =>
+          typeof onCustomMessageReceived === 'function' && onCustomMessageReceived(m),
       })
     );
   }
 
   /**
-   * Send a text to a GROUP
+   * Send text to GROUP
    */
   async sendTextToGroup(groupGuid, text) {
-    const msg = new TextMessage(groupGuid, text, CometChat.RECEIVER_TYPE.GROUP);
+    const msg = new CometChat.TextMessage(groupGuid, text, CometChat.RECEIVER_TYPE.GROUP);
     return CometChat.sendMessage(msg);
   }
 }
