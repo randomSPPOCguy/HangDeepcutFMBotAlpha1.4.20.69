@@ -124,7 +124,8 @@ const ContentFilter = require('./modules/features/ContentFilter');
     // Initialize CometChat Manager
     log.info('Initializing CometChat…');
     const chat = new CometChatManager({
-      cometChatApiKey: config.cometChatApiKey,
+      cometChatAppId: config.cometChatAppId,
+      cometChatRegion: config.cometChatRegion,
       cometChatAuth: config.cometChatAuth,
       userId: config.userId,
       roomId: config.roomId,
