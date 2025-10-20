@@ -1,4 +1,10 @@
 // hangfm-bot-modular/modules/connection/CometChatManager.js
+
+// Node.js shim for CometChat SDK (browser-only SDK)
+if (typeof window === 'undefined') {
+  global.window = {};
+}
+
 const {
   CometChat,
   AppSettingsBuilder,
