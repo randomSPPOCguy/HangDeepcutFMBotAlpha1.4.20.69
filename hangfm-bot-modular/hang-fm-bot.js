@@ -124,19 +124,17 @@ const ContentFilter = require('./modules/features/ContentFilter');
     // Initialize CometChat Manager
     log.info('Initializing CometChat…');
     const chat = new CometChatManager({
-      cometChatAppId: config.cometChatAppId,
-      cometChatRegion: config.cometChatRegion,
-      cometChatAuth: config.cometChatAuth,
-      userId: config.userId,
-      roomId: config.roomId,
-      botName: config.botName,
-      botAvatar: config.botAvatar,
-      chatAvatarId: config.chatAvatarId
-    }, logger);
+      COMETCHAT_APP_ID: config.cometChatAppId,
+      COMETCHAT_REGION: config.cometChatRegion,
+      COMETCHAT_AUTH: config.cometChatAuth,
+      COMETCHAT_GROUP_GUID: config.roomId,
+      ROOM_UUID: config.roomId,
+      roomId: config.roomId
+    });
 
     // Connect to CometChat
     await chat.connect();
-    log.info('CometChat initialized.');
+    log.log('✅ CometChat initialized');
 
     // Initialize other managers
     const spam = new SpamProtection(logger);
@@ -166,13 +164,16 @@ const ContentFilter = require('./modules/features/ContentFilter');
     };
 
     // Initialize handlers
-    const events = new EventHandler(bot, logger);
+    const events = new EventHandler({ chat, ai, config });
     const commands = new CommandHandler(bot, logger);
     const admin = new AdminCommandHandler(bot, logger);
 
     bot.events = events;
     bot.commands = commands;
     bot.admin = admin;
+    
+    // Bind EventHandler to CometChat messages
+    events.bind();
 
     // Connect socket
     log.info('Connecting socket…');
@@ -192,15 +193,8 @@ const ContentFilter = require('./modules/features/ContentFilter');
     // Wire up event handlers
     log.info('Bot starting…');
     
-    // Handle chat messages from CometChat
-    chat.onMessage((message) => {
-      try {
-        events.handleChatMessage(message);
-      } catch (err) {
-        logger.error('Error handling chat message:', err);
-      }
-    });
-
+    // NOTE: Chat messages are now handled by EventHandler.bind() above
+    
     // Handle socket events with state management
     if (socket.on) {
       const { applyPatch } = require('fast-json-patch');
@@ -310,7 +304,7 @@ const ContentFilter = require('./modules/features/ContentFilter');
 
     // Send boot greeting
     const gluedText = bot.glued ? 'yes' : 'no';
-    await chat.sendMessage(config.roomId, `✅ **BOT online** (glued: ${gluedText})`);
+    await chat.sendTextToRoom(`✅ **BOT online** (glued: ${gluedText})`);
     log.info('Boot greeting sent.');
 
     // Start periodic tasks

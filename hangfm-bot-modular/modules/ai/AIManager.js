@@ -28,8 +28,23 @@ class AIManager {
     this.userConversations = new Map();
   }
 
-  async generateResponse(message, userId, userName, currentSong = null, roomState = null) {
+  async generateResponse(messageOrOptions, userId, userName, currentSong = null, roomState = null) {
     try {
+      // Support both old and new call signatures
+      let message, senderUid, senderName;
+      
+      if (typeof messageOrOptions === 'object' && messageOrOptions.text) {
+        // New signature: { text, senderUid, senderName, roomId }
+        message = messageOrOptions.text;
+        senderUid = messageOrOptions.senderUid;
+        senderName = messageOrOptions.senderName;
+      } else {
+        // Old signature: (message, userId, userName, currentSong, roomState)
+        message = messageOrOptions;
+        senderUid = userId;
+        senderName = userName;
+      }
+      
       // Build context
       let currentSongInfo = 'No song currently playing';
       if (currentSong) {
@@ -41,13 +56,13 @@ class AIManager {
       }
       
       // Get user sentiment
-      const sentiment = this.updateUserSentiment(userId, message);
+      const sentiment = this.updateUserSentiment(senderUid, message);
       
       // Build personality prompt with nuanced mood tiers
       let personalityPrompt = '';
       switch (sentiment.mood) {
         case 'enthusiastic':
-          personalityPrompt = `Be extra friendly and playful! This user has been consistently nice (${sentiment.consecutivePositive} positive interactions). Use their name "${userName}", add warmth, maybe a friendly emoji. Show genuine enthusiasm!`;
+          personalityPrompt = `Be extra friendly and playful! This user has been consistently nice (${sentiment.consecutivePositive} positive interactions). Use their name "${senderName}", add warmth, maybe a friendly emoji. Show genuine enthusiasm!`;
           break;
         case 'positive':
           personalityPrompt = 'Be friendly and helpful. The user has been nice to you, so reciprocate their positive energy.';
