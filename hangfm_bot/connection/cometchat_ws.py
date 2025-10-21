@@ -62,12 +62,13 @@ class CometChatWebSocket:
         try:
             async for message in self.ws:
                 try:
+                    LOG.debug(f"📩 Raw WebSocket message: {message[:200]}")
                     await self._handle_message(message)
                 except Exception as e:
                     LOG.error(f"Error handling message: {e}")
                     
-        except websockets.exceptions.ConnectionClosed:
-            LOG.warning("⚠️ CometChat WebSocket closed")
+        except websockets.exceptions.ConnectionClosed as e:
+            LOG.warning(f"⚠️ CometChat WebSocket closed: {e}")
             self.authenticated = False
             self.running = False
         except Exception as e:
@@ -81,12 +82,15 @@ class CometChatWebSocket:
         """
         try:
             message = json.loads(data)
+            LOG.debug(f"📨 Parsed message: {json.dumps(message, indent=2)[:300]}")
             
-            # Check for authentication success
+            # Check for authentication success (multiple possible formats)
             if (message.get('type') == 'auth' or 
                 message.get('type') == 'authSuccess' or
                 message.get('status') == 'success' or
-                message.get('code') == '200'):
+                message.get('code') == '200' or
+                (message.get('body', {}).get('code') == '200') or
+                (message.get('body', {}).get('success'))):
                 
                 self.authenticated = True
                 LOG.info("✅ CometChat WebSocket authenticated!")
@@ -96,17 +100,22 @@ class CometChatWebSocket:
             if message.get('type') == 'message':
                 body = message.get('body', {})
                 
+                LOG.info(f"🔔 CometChat message type: {message.get('type')}, body type: {body.get('type')}")
+                
                 if body.get('type') == 'text':
                     sender_uuid = body.get('sender')
                     sender_name = body.get('senderName', 'Unknown')
                     text = body.get('data', {}).get('text', '')
                     
+                    LOG.info(f"💬 Text message from {sender_name} ({sender_uuid}): {text}")
+                    
                     # Ignore own messages
                     if sender_uuid == settings.cometchat_uid:
+                        LOG.debug("Ignoring own message")
                         return
                     
                     if text and sender_uuid:
-                        LOG.info(f"💬 CometChat WS: {sender_name} said: {text[:50]}")
+                        LOG.info(f"✅ Forwarding to queue: {text[:50]}")
                         
                         # Put message in queue for processing
                         await self.message_queue.put(('chatMessage', {
@@ -116,11 +125,17 @@ class CometChatWebSocket:
                                 'name': sender_name
                             }
                         }))
+                    else:
+                        LOG.warning(f"⚠️ Missing text or sender_uuid - text={bool(text)}, sender={sender_uuid}")
+                else:
+                    LOG.debug(f"Ignoring non-text message type: {body.get('type')}")
+            else:
+                LOG.debug(f"Ignoring message type: {message.get('type')}")
                     
-        except json.JSONDecodeError:
-            LOG.warning(f"Invalid JSON from CometChat: {data[:100]}")
+        except json.JSONDecodeError as e:
+            LOG.warning(f"Invalid JSON from CometChat: {data[:100]} - {e}")
         except Exception as e:
-            LOG.error(f"Error parsing CometChat message: {e}")
+            LOG.error(f"Error parsing CometChat message: {e}", exc_info=True)
     
     async def close(self):
         """Close WebSocket connection"""
