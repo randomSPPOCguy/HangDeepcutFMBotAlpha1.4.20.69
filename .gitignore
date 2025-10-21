@@ -67,6 +67,6 @@ user-stats.json
 # Original bot reference (keep local, don't commit)
 ORIGINAL-BOT-BACKUP/
 original-bot-extracted/
-hangfm-bot/
-deepcut-bot/
+OG-HANG/
+OG-DEEPCUT/
 *.zip
