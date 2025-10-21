@@ -1,0 +1,34 @@
+===============================================
+QUICK START - ONE COMMAND!
+===============================================
+
+STEP 1 (ONE TIME SETUP):
+-------------------------------------------
+cd c:\Users\markq\cx\relay
+npm install
+
+
+STEP 2 (START BOT):
+-------------------------------------------
+cd c:\Users\markq\cx
+START-BOT.bat
+
+
+THAT'S IT! ONE WINDOW!
+===============================================
+
+What happens:
+1. Node relay starts in background
+2. Python bot starts in foreground
+3. Both work together automatically
+
+To stop: Press Ctrl+C (kills both processes)
+
+===============================================
+
+OR use PowerShell one-liner:
+-------------------------------------------
+cd c:\Users\markq\cx; START-BOT.bat
+
+===============================================
+

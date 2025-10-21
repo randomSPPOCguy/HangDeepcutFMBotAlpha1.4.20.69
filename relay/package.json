@@ -1,0 +1,17 @@
+{
+  "name": "ttfm-relay",
+  "version": "0.1.0",
+  "description": "Node.js relay for ttfm-socket to Python bot",
+  "main": "relay.js",
+  "scripts": {
+    "start": "node relay.js"
+  },
+  "dependencies": {
+    "ttfm-socket": "^1.6.10",
+    "axios": "^1.12.2",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "body-parser": "^1.20.2"
+  }
+}
+
