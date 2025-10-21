@@ -15,7 +15,7 @@ from hangfm_bot.handlers import CommandHandler
 from hangfm_bot.music import GenreClassifier
 from hangfm_bot.message_queue import MessageQueue
 from hangfm_bot.relay_receiver import RelayReceiver
-from hangfm_bot.connection import CometChatManager
+from hangfm_bot.connection import CometChatManager, CometChatWebSocket
 from hangfm_bot import uptime as uptime_module
 
 LOG = logging.getLogger("hangfm_bot")
@@ -46,6 +46,52 @@ async def process_queue_item(item, ai_manager, command_handler, content_filter, 
     LOG.info("=" * 60)
     
     try:
+        # Handle chat messages from CometChat WebSocket
+        if event_type == "chatMessage":
+            text = data.get("text", "")
+            sender = data.get("sender", {})
+            sender_uuid = sender.get("uid", "")
+            sender_name = sender.get("name", "Unknown")
+            
+            LOG.info(f"💬 Chat message - From: {sender_name} ({sender_uuid}) | Text: {text[:100]}")
+            
+            if not text or not sender_uuid:
+                LOG.warning("⚠️ Missing text or sender UUID - skipping")
+                return
+
+            if not content_filter.is_clean(text):
+                LOG.warning("🚫 Filtered message from %s: profanity", sender_name)
+                return
+
+            # Handle commands
+            if text.startswith("/") or text.startswith("."):
+                LOG.info(f"⚡ Command detected: {text}")
+                response = await command_handler.handle_message(sender_uuid, text, sender_name)
+                if response:
+                    LOG.info(f"💬 Sending command response: {response[:100]}")
+                    sent = await cometchat.send_message(response)
+                    if sent:
+                        LOG.info("✅ Command response sent")
+                    else:
+                        LOG.error("❌ Command response failed to send")
+                return
+
+            # Handle AI keywords
+            if "bot" in text.lower():
+                LOG.info(f"🤖 AI keyword triggered by {sender_name}: {text}")
+                ai_response = await ai_manager.generate_response(text, "user", [])
+                if ai_response:
+                    LOG.info(f"✅ AI response generated: {ai_response[:100]}")
+                    sent = await cometchat.send_message(ai_response)
+                    if sent:
+                        LOG.info("✅ AI response sent")
+                    else:
+                        LOG.error("❌ AI response failed to send")
+                else:
+                    LOG.warning("⚠️ AI returned empty response")
+            return
+        
+        # Handle Socket.IO events (from relay)
         if event_type in ("statefulMessage", "statelessMessage"):
             # Try multiple possible payload structures
             text = None
@@ -189,6 +235,15 @@ async def main():
     LOG.info("=" * 60)
     LOG.info("   Listening on: http://127.0.0.1:4000/events")
     LOG.info("=" * 60)
+    
+    # Start CometChat WebSocket (for receiving chat messages)
+    cometchat_ws = CometChatWebSocket(message_queue)
+    try:
+        await cometchat_ws.connect()
+        LOG.info("✅ CometChat WebSocket connected")
+    except Exception as e:
+        LOG.error(f"❌ CometChat WebSocket failed: {e}")
+        LOG.warning("⚠️ Bot will continue without CometChat WebSocket (no chat message reception)")
 
     # Send boot greeting
     try:
@@ -215,6 +270,7 @@ async def main():
         LOG.info("Shutting down, persisting uptime")
         uptime_manager.record_shutdown()
         await cometchat.close()  # Close aiohttp session
+        await cometchat_ws.close()  # Close WebSocket
         await runner.cleanup()
 
 
