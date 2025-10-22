@@ -5,7 +5,7 @@ import logging
 class MessageQueue:
     def __init__(self, maxsize=100):
         self.queue = asyncio.Queue(maxsize=maxsize)
-        logging.info(f"MessageQueue initialized with maxsize={maxsize}")
+        logging.debug(f"MessageQueue initialized with maxsize={maxsize}")
 
     async def put(self, item):
         await self.queue.put(item)

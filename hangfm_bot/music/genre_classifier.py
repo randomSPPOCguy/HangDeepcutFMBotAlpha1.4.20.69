@@ -30,7 +30,7 @@ class GenreClassifier:
     }
     
     def __init__(self):
-        logging.info("GenreClassifier initialized with strict genre rules")
+        logging.debug("GenreClassifier initialized with strict genre rules")
 
     def is_alt_hip_hop_subgenre(self, subgenre: str) -> bool:
         """Check if subgenre belongs to Alternative Hip Hop"""

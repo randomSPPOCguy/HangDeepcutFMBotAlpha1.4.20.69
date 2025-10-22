@@ -28,10 +28,13 @@ class UptimeManager:
                     data = json.load(f)
                 self.total_seconds_before = float(data.get("total_seconds", 0.0))
                 self.first_seen = float(data.get("first_seen")) if data.get("first_seen") else None
+                if self.total_seconds_before > 0:
+                    LOG.info(f"💾 Loaded uptime state: {self.total_seconds_before:.0f}s lifetime")
             else:
                 # initialize file with first_seen now
                 self.first_seen = time.time()
                 self._save_state()
+                LOG.info("📝 Created new uptime state file")
         except Exception as exc:
             LOG.warning("Failed to load uptime state, starting fresh: %s", exc)
             self.total_seconds_before = 0.0
@@ -87,6 +90,21 @@ class UptimeManager:
             if not self.first_seen:
                 self.first_seen = time.time() - run_seconds
             self._save_state()
+            LOG.info(f"💾 Uptime saved: {run_seconds:.0f}s this session, {self.total_seconds_before:.0f}s lifetime")
         except Exception as exc:
             LOG.warning("Failed to record shutdown uptime: %s", exc)
+    
+    def save_periodic(self):
+        """Periodically save current uptime to prevent data loss"""
+        try:
+            current_total = self.total_seconds_before + self.get_current_uptime()
+            STATE_FILE.write_text(
+                json.dumps({
+                    "total_seconds": current_total,
+                    "first_seen": self.first_seen
+                }),
+                encoding="utf-8"
+            )
+        except Exception as exc:
+            LOG.debug(f"Periodic save failed: {exc}")
 

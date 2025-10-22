@@ -1,223 +1,368 @@
-# Hang.fm Bot - Python Version (Modular)
+# Hang.fm Bot Collection
 
-🎵 **Professional Modular Hang.fm Bot** with AI, Music Discovery, and Room Event Tracking
+🎵 **Collection of AI-Powered Music Bots for Turntable-style Music Platforms**
 
-## ✨ Features
+This repository contains three music bots for different platforms and use cases:
+1. **Python Bot** (WIP) - Modern hybrid architecture with health monitoring
+2. **OG Hang.fm Bot** (Production-Ready) - Full-featured JavaScript bot for Hang.fm/tt.live
+3. **OG Deepcut Bot** (Production-Ready) - Specialized bot for Deepcut.live
 
-- **Multi-AI Support**: Gemini, Claude, OpenAI, HuggingFace (via aisuite)
-- **Music Discovery**: Discogs + Spotify integration
-- **Room Events**: Real-time Socket.IO event handling
-- **Command System**: Role-based access control
-- **Content Filtering**: Profanity detection
-- **Genre Classification**: Alternative Hip Hop, Rock, Nu-Metal focus
-- **Async/Await**: Modern Python asyncio architecture
-- **Modular Design**: Clean folder structure for maintainability
+---
 
-## 🚀 Quick Start
+## 🤖 Bots Overview
 
-### 1. Install Dependencies
+### 1. 🐍 Python Bot (WIP - Under Discussion)
 
+**Status:** Work In Progress - Architecture being refined
+
+**What It Currently Has:**
+- ✅ **Hybrid Architecture**: Node.js relay + Python core
+- ✅ **Multi-AI Support**: Gemini, OpenAI, Claude, HuggingFace (priority fallback system)
+- ✅ **Real-time Events**: Socket.IO relay for room events (plays, joins, DJs)
+- ✅ **HTTP Polling**: CometChat message receiving via HTTP
+- ✅ **Command System**: `/help`, `/commands`, `/uptime`, `/room`, `/.adminhelp`, `/.ai`
+- ✅ **Role-Based Access**: Co-owners, moderators, users with configurable permissions
+- ✅ **AI Personality**: Dynamic sentiment-based responses (friendly/roasting/neutral)
+- ✅ **User Memory**: Tracks conversation history and sentiment per user
+- ✅ **Health Monitoring**: Periodic connection checks (every 5 minutes)
+- ✅ **Uptime Tracking**: Persistent session and lifetime tracking
+- ✅ **Content Filtering**: Permissive mode (allows swearing, blocks hate speech via AI)
+- ✅ **Room State Tracking**: Boot-time loading of current song, DJs, users in room
+- ✅ **Environment-Based Config**: Zero hardcoded secrets, all from `.env`
+
+**What It Needs:**
+- 🔄 Music Discovery System (Discogs + Spotify integration planned)
+- 🔄 DJ/Auto-Queue Features
+- 🔄 Stats Tracking (user plays, song history)
+- 🔄 Artist Learning System
+
+**Tech Stack:**
+- Python 3.12+ with async/await
+- Node.js relay for Socket.IO
+- `aiohttp` for async HTTP
+- `aisuite` for unified AI interface
+- `pydantic` for config validation
+
+**Quick Start:**
 ```bash
+# 1. Install dependencies
 pip install -r requirements.txt
-```
+cd relay && npm install && cd ..
 
-### 2. Configure Environment
-
-Copy `env.example` to `.env` and fill in your credentials:
-
-```bash
-# Windows
-Copy-Item env.example .env
-
-# Linux/Mac
+# 2. Configure
 cp env.example .env
+# Edit .env with your credentials
+
+# 3. Run
+.\START-BOT.bat
 ```
 
-### 3. Run the Bot
+---
 
-**PowerShell one-liner:**
-```powershell
-cd c:\Users\markq\cx; python main.py
-```
+### 2. 📜 OG Hang.fm Bot (JavaScript - Production Ready)
 
-**Or use the launcher:**
-```cmd
-START-BOT.bat
-```
+**Platform:** Hang.fm (tt.live)
 
-**Or run directly:**
+**Full-Featured Production Bot:**
+- ✅ **Complete AI System**: OpenAI GPT, Google Gemini, Anthropic Claude support
+- ✅ **Advanced Music Discovery**: 
+  - Discogs API integration for genre classification
+  - Spotify API for track discovery and metadata
+  - Artist learning from user plays
+  - Smart queue selection based on room preferences
+  - Alternative Hip Hop, Alternative Rock, Nu-Metal focus
+- ✅ **Room Management**: 
+  - Auto-DJ capabilities
+  - Queue management
+  - User tracking and statistics
+- ✅ **Stats System**:
+  - Per-user play counts
+  - Song history tracking
+  - Artist preference aggregation
+- ✅ **Content Moderation**: Profanity filter, spam protection
+- ✅ **Role-Based Permissions**: Owner, admin, mod, DJ, user roles
+- ✅ **Boot Greeting**: Announces presence on startup
+- ✅ **AI Token Management**: Smart usage limits to save API costs
+- ✅ **Bot Exclusion System**: Ignores other bots in learning
+- ✅ **Avatar System**: Customizable chat avatars
+
+**Tech Stack:**
+- Node.js with ES6+
+- WebSocket (CometChat) for real-time chat
+- Socket.IO (ttfm-socket) for room events
+- Axios for HTTP requests
+- dotenv for configuration
+
+**Quick Start:**
 ```bash
-python main.py
+cd OG-HANG
+
+# 1. Install dependencies
+npm install
+
+# 2. Configure
+cp hang-fm-config.env.example hang-fm-config.env
+# Edit hang-fm-config.env with your credentials
+
+# 3. Run
+.\START-BOT.bat
+# Or: node hang-fm-bot.js
 ```
 
-## 📂 Project Structure
+---
 
-```
-cx/
-├── main.py                      # 🚀 Entry point
-├── requirements.txt             # 📦 Dependencies
-├── env.example                  # 📝 Config template
-├── .env                         # 🔐 Your config (gitignored)
-├── START-BOT.bat               # 🎮 Windows launcher
-│
-├── hangfm_bot/                  # 📦 Main package
-│   ├── __init__.py
-│   ├── config.py                # ⚙️  Configuration
-│   ├── message_queue.py         # 📬 Async queue
-│   │
-│   ├── ai/                      # 🤖 AI System
-│   │   ├── __init__.py
-│   │   └── ai_manager.py        # Multi-provider orchestration
-│   │
-│   ├── handlers/                # 📨 Event Handlers
-│   │   ├── __init__.py
-│   │   └── command_handler.py   # Command processing
-│   │
-│   ├── utils/                   # 🔧 Utilities
-│   │   ├── __init__.py
-│   │   ├── content_filter.py    # Content moderation
-│   │   └── role_checker.py      # RBAC system
-│   │
-│   ├── music/                   # 🎵 Music Discovery
-│   │   ├── __init__.py
-│   │   └── genre_classifier.py  # Genre validation
-│   │
-│   ├── connection/              # 🔌 Connections
-│   │   └── __init__.py
-│   │
-│   └── http/                    # 🌐 HTTP Clients
-│       └── __init__.py
-│
-├── code-txt/                    # 📚 JS Reference
-│   └── (21 original .js files)
-│
-└── docs/                        # 📖 Documentation
-    ├── README.md
-    ├── SETUP.md
-    └── PYTHON-CONVERSION-COMPLETE.md
+### 3. 📜 OG Deepcut Bot (JavaScript - Production Ready)
+
+**Platform:** Deepcut.live
+
+**Specialized Bot for Deepcut's Platform:**
+- ✅ **Multi-AI Provider**: OpenAI GPT, Google Gemini, HuggingFace support
+- ✅ **AI Provider Toggle**: Switch between providers on-the-fly
+- ✅ **Permission System**: Owner, admin, mod hierarchies
+- ✅ **Command System**: Extensive commands for room management
+- ✅ **Auto-Upvote**: Optional automatic upvoting
+- ✅ **PM Support**: Owner-only private message commands
+- ✅ **Keyword Triggers**: Customizable AI activation keywords
+- ✅ **Silent Mode**: Run without main chat spam
+- ✅ **Wiki Integration**: Wikipedia lookup capability
+- ✅ **Discogs Integration**: Music metadata lookup
+
+**Tech Stack:**
+- Node.js with ES6+
+- WebSocket for Deepcut.live protocol
+- Multiple AI provider support
+- dotenv for configuration
+
+**Quick Start:**
+```bash
+cd OG-DEEPCUT
+
+# 1. Install dependencies
+npm install
+
+# 2. Configure
+cp config.env.example config.env
+# Edit config.env with your credentials
+
+# 3. Run
+.\START-BOT.bat
+# Or: node bot.js
 ```
 
-## 🎮 Commands
+---
 
-**Public:**
+## 🔐 Security
+
+All bots follow security best practices:
+- ✅ **Zero Hardcoded Secrets**: All credentials in `.env` files (gitignored)
+- ✅ **Config Templates**: `.example` files show required variables
+- ✅ **No Token Exposure**: Code only reads from environment variables
+- ✅ **Permission-Based Access**: Role checking for sensitive commands
+
+---
+
+## 📁 Repository Structure
+
+```
+Ultimate bot project/
+│
+├── 🐍 Python Bot (main/)
+│   ├── main.py                      # Entry point
+│   ├── hangfm_bot/                  # Core package
+│   │   ├── ai/                      # Multi-provider AI system
+│   │   ├── connection/              # CometChat + relay
+│   │   ├── handlers/                # Command processing
+│   │   ├── utils/                   # RBAC, content filter
+│   │   ├── music/                   # Genre classifier (WIP)
+│   │   ├── config.py                # Pydantic settings
+│   │   ├── uptime.py                # Uptime tracking
+│   │   └── user_memory.py           # Conversation memory
+│   ├── relay/                       # Node.js Socket.IO relay
+│   │   └── relay.js
+│   ├── requirements.txt             # Python dependencies
+│   ├── env.example                  # Config template
+│   └── START-BOT.bat               # Windows launcher
+│
+├── 📜 OG Hang.fm Bot (OG-HANG/)
+│   ├── hang-fm-bot.js              # Complete bot implementation
+│   ├── hang-fm-config.env.example  # Config template
+│   ├── package.json                # Node dependencies
+│   └── START-BOT.bat               # Windows launcher
+│
+├── 📜 OG Deepcut Bot (OG-DEEPCUT/)
+│   ├── bot.js                      # Complete bot implementation
+│   ├── config.env.example          # Config template
+│   ├── package.json                # Node dependencies
+│   └── START-BOT.bat               # Windows launcher
+│
+└── README.md                        # This file
+```
+
+---
+
+## 🎮 Common Commands
+
+All bots share similar command structures:
+
+**Public Commands:**
 - `/help` - Show help message
-- `/commands` - List commands
-- `/stats` - Your statistics
-- `/ai <message>` - Chat with AI
-- Say **"bot"** to trigger AI
+- `/commands` - List available commands
+- `/stats` - User statistics (JS bots)
+- `/uptime` - Bot uptime
+- `/room` - Current room status (Python bot)
+- Say **"bot"** in chat to trigger AI
 
-**Admin** (Mods/Co-owners):
-- `/.adminhelp` - Admin commands
+**Admin Commands:**
+- `/.adminhelp` - Show admin commands
+- `/.ai <provider>` - Switch AI provider (Python bot, co-owners only)
 
-## 🔧 Development
+---
 
-**Test configuration:**
+## 🔧 Configuration
+
+Each bot requires its own configuration file:
+
+### Python Bot (`.env`):
 ```bash
-python -c "from hangfm_bot.config import settings; print(settings.room_uuid)"
+# Platform
+TTFM_API_TOKEN=your_token
+ROOM_UUID=your_room_uuid
+BOT_NAME=BOT
+
+# CometChat
+COMETCHAT_APPID=your_app_id
+COMETCHAT_AUTH=your_auth_token
+
+# Permissions
+COOWNER_UUIDS=uuid1,uuid2
+MODERATOR_UUIDS=uuid3,uuid4
+
+# AI Providers
+GEMINI_API_KEY=your_key
+OPENAI_API_KEY=your_key
+ANTHROPIC_API_KEY=your_key
+HUGGINGFACE_API_KEY=your_key
 ```
 
-**Run with debug logging:**
+### OG Hang.fm Bot (`hang-fm-config.env`):
 ```bash
-LOG_LEVEL=DEBUG python main.py
+BOT_USER_TOKEN=your_token
+ROOM_ID=your_room_id
+COMETCHAT_AUTH=your_auth
+
+GEMINI_API_KEY=your_key
+OPENAI_API_KEY=your_key
+
+DISCOGS_USER_TOKEN=your_token
+SPOTIFY_CLIENT_ID=your_id
+SPOTIFY_CLIENT_SECRET=your_secret
+
+DJ_ENABLED=false
+AUTO_UPVOTE=false
+BOOT_GREET=true
 ```
 
-**Python version:**
+### OG Deepcut Bot (`config.env`):
 ```bash
-python --version  # Requires 3.10+
+AUTH=your_auth_token
+USERID=your_user_id
+ROOMID=your_room_id
+BOT_NAME=BOT2
+
+OWNER_USERIDS=id1,id2
+ADMIN_USERIDS=id3
+MOD_USERIDS=id4
+
+AI_PROVIDER=openai
+OPENAI_API_KEY=your_key
+GEMINI_API_KEY=your_key
 ```
 
-## 📝 Architecture
+See each bot's `.example` file for complete configuration details.
 
-### Modular Design
+---
 
-Each subsystem is isolated in its own package:
+## 🚀 Deployment
 
-- **`ai/`** - AI provider abstraction (aisuite)
-- **`handlers/`** - Message and command processing
-- **`utils/`** - Shared utilities (filtering, RBAC)
-- **`music/`** - Music discovery and genre classification
-- **`connection/`** - Socket.IO and CometChat managers
-- **`http/`** - REST API clients
-
-### Async/Await
-
-All I/O operations use Python's native `async`/`await`:
-
-```python
-async def handle_message(msg):
-    response = await ai_manager.generate_response(msg)
-    await chat.send(response)
+### Python Bot:
+```bash
+cd "C:\path\to\Ultimate bot project"
+.\START-BOT.bat
 ```
 
-### Type Safety
-
-Full type hints for IDE support and validation:
-
-```python
-async def generate_response(
-    message: str,
-    user_role: str = "user",
-    context: Optional[List[Dict]] = None
-) -> str:
+### OG Hang.fm Bot:
+```bash
+cd OG-HANG
+.\START-BOT.bat
 ```
 
-## 🔒 Security
+### OG Deepcut Bot:
+```bash
+cd OG-DEEPCUT
+.\START-BOT.bat
+```
 
-- ✅ All credentials in `.env` (gitignored)
-- ✅ Content filtering enabled
-- ✅ Role-based permissions
-- ✅ No sensitive data logging
-- ✅ Only public data processed
+---
 
-## 📚 Dependencies
+## 🤝 Contributing
 
-Core:
-- `aiohttp` - Async HTTP
-- `python-socketio` - Socket.IO client
-- `pydantic` - Config validation
+This is a personal bot collection. The Python bot is under active development and open to architectural discussions.
 
-AI:
-- `aisuite` - Unified AI interface
-- `openai`, `anthropic`, `google-generativeai`
-
-Music:
-- `spotipy` - Spotify API
-- `discogs-client` - Discogs API
-
-Utils:
-- `profanity-filter` - Content moderation
-
-## 🎵 Music Discovery (Coming Soon)
-
-Planned features:
-- User play tracking
-- Preference aggregation
-- Discogs genre classification
-- Spotify track discovery
-- Smart track selection
-
-See `code-txt/` for JavaScript reference.
-
-## 🐛 Troubleshooting
-
-**"No module named 'hangfm_bot'"**
-→ Run from project root: `python main.py`
-
-**"No module named 'pydantic_settings'"**
-→ Install: `pip install pydantic-settings`
-
-**Socket connection fails**
-→ Check `TTFM_API_TOKEN` and `ROOM_UUID` in `.env`
-
-**No AI responses**
-→ Set at least one AI provider key in `.env`
+---
 
 ## 📄 License
 
 MIT License - Free to use and modify
 
+---
+
 ## 🙏 Credits
 
-Converted from Node.js using Microsoft Copilot architecture.
+- **Python Bot**: Modern rewrite with hybrid architecture
+- **OG Hang.fm Bot**: Production-tested on Hang.fm/tt.live
+- **OG Deepcut Bot**: Production-tested on Deepcut.live
 
-Original JavaScript: `code-txt/` folder
+Original JavaScript implementations converted and enhanced with AI assistance.
+
+---
+
+## 📊 Bot Comparison
+
+| Feature | Python Bot | OG Hang.fm | OG Deepcut |
+|---------|-----------|------------|------------|
+| **Status** | WIP | ✅ Production | ✅ Production |
+| **Multi-AI** | ✅ 4 providers | ✅ 3 providers | ✅ 3 providers |
+| **Music Discovery** | 🔄 Planned | ✅ Full | ⚠️ Basic |
+| **DJ/Queue** | 🔄 Planned | ✅ Full | ✅ Full |
+| **Stats Tracking** | 🔄 Planned | ✅ Full | ⚠️ Basic |
+| **Health Monitoring** | ✅ Yes | ❌ No | ❌ No |
+| **User Memory** | ✅ Yes | ❌ No | ❌ No |
+| **Dynamic Personality** | ✅ Yes | ⚠️ Basic | ⚠️ Basic |
+| **Architecture** | Hybrid | Monolith | Monolith |
+| **Platform** | Hang.fm | Hang.fm | Deepcut.live |
+
+---
+
+## 🐛 Troubleshooting
+
+### Python Bot
+- **"Module not found"**: Run `pip install -r requirements.txt`
+- **Relay not connecting**: Check `TTFM_API_TOKEN` in `.env`
+- **Bot not visible**: Check `COMETCHAT_AUTH` credentials
+- **Room events not loading**: Wait 7 seconds after relay starts
+
+### OG Hang.fm Bot
+- **"localStorage not defined"**: Run with Node.js (not browser)
+- **Connection fails**: Check `BOT_USER_TOKEN` and `ROOM_ID`
+- **No AI responses**: Verify at least one AI provider key is set
+
+### OG Deepcut Bot
+- **WebSocket errors**: Check `AUTH` and `ROOMID` for Deepcut
+- **Commands not working**: Verify user IDs in `OWNER_USERIDS`
+
+---
+
+**Choose the bot that fits your needs:**
+- 🐍 **Python Bot** - Modern architecture, under development
+- 📜 **OG Hang.fm** - Full-featured, production-ready for Hang.fm
+- 📜 **OG Deepcut** - Specialized for Deepcut.live platform

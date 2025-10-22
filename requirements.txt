@@ -7,7 +7,7 @@ pydantic-settings>=2.1.0
 python-dotenv>=1.0.0
 
 # AI Providers
-aisuite>=0.1.0
+aisuite[all]>=0.1.0
 openai>=1.3.0
 anthropic>=0.7.0
 google-generativeai>=0.3.0

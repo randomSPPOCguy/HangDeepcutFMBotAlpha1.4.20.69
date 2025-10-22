@@ -25,14 +25,25 @@ class Settings(BaseSettings):
     
     # AI Providers
     openai_api_key: str | None = None
+    openai_model: str = "gpt-4o-mini"
     anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-3-5-sonnet-20241022"
     gemini_api_key: str | None = None
+    gemini_model: str = "gemini-2.5-flash"
     huggingface_api_key: str | None = None
+    huggingface_models: str = "mistralai/Mistral-7B-Instruct-v0.3"  # Comma-separated for multiple models
     
     # Music Discovery
     music_year_start: int = 1950
     music_year_end: int = 2025
     recently_played_limit: int = 50
+    
+    # Permissions (comma-separated UUIDs)
+    coowner_uuids: str = ""
+    moderator_uuids: str = ""
+    
+    # Bot AI System Prompt (full customizable prompt from .env)
+    bot_system_prompt: str = ""  # If empty, uses default in ai_manager.py
     
     # Misc
     log_level: str = "INFO"

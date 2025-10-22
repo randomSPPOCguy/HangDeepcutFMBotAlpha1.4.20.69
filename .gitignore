@@ -35,6 +35,9 @@ package-lock.json
 *.env
 !env.example
 !*.env.example
+!**/config.env.example
+hang-fm-config.env
+config.env
 
 # IDE
 .vscode/
@@ -53,6 +56,7 @@ relay.log
 
 # Bot data
 uptime_state.json
+user_memory.json
 bot-learned-artists.json
 bot-strikes.json
 song-stats.json
@@ -64,9 +68,7 @@ user-stats.json
 *.temp
 .cache/
 
-# Original bot reference (keep local, don't commit)
+# Old reference folders (not needed)
 ORIGINAL-BOT-BACKUP/
 original-bot-extracted/
-OG-HANG/
-OG-DEEPCUT/
 *.zip

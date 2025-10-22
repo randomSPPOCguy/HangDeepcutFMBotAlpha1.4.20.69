@@ -63,6 +63,22 @@ app.post('/send', relayAuth, async (req, res) => {
 // health endpoints
 app.get('/health', (req, res) => res.json({ ok: true, socketConnected: !!socket && socket.connected }));
 app.get('/ready', (req, res) => res.json({ ok: true }));
+app.get('/roomstate', (req, res) => {
+  if (socket && socket.connected) {
+    socket.emit('getRoomState', { roomUuid: ROOM_UUID }, (roomState) => {
+      if (roomState) {
+        // Forward to Python
+        axios.post(PY_WEBHOOK, { event: 'roomStateUpdated', payload: roomState }, { timeout: 5000 })
+          .then(() => res.json({ ok: true, forwarded: true }))
+          .catch(e => res.json({ ok: false, error: e.message }));
+      } else {
+        res.json({ ok: false, error: 'Empty room state' });
+      }
+    });
+  } else {
+    res.json({ ok: false, error: 'Socket not connected' });
+  }
+});
 
 const server = app.listen(RELAY_PORT, () => {
   console.log(`✅ Relay HTTP listening on http://127.0.0.1:${RELAY_PORT}`);
@@ -70,15 +86,41 @@ const server = app.listen(RELAY_PORT, () => {
 
 // ttfm-socket wiring
 let socket = null;
+let roomStateRequested = false;
+
 async function startSocket() {
   socket = new SocketClient(SOCKET_URL);
 
+  // Function to request room state
+  const requestRoomState = () => {
+    if (roomStateRequested) return; // Only request once
+    if (socket && socket.connected) {
+      console.info('📊 Requesting room state...');
+      roomStateRequested = true;
+      socket.emit('getRoomState', { roomUuid: ROOM_UUID }, (roomState) => {
+        if (roomState) {
+          console.info('✅ Room state received');
+          // Forward initial room state to Python
+          axios.post(PY_WEBHOOK, { event: 'roomStateUpdated', payload: roomState }, { timeout: 5000 })
+            .catch(e => console.warn('⚠️  Failed to forward initial room state', e.message));
+        } else {
+          console.warn('⚠️  Room state was empty');
+        }
+      });
+    } else {
+      console.warn('⚠️  Socket not connected for room state request');
+    }
+  };
+
   socket.on('connect', () => {
     console.info('✅ ttfm-socket connected');
+    // Request room state when socket is actually connected
+    setTimeout(requestRoomState, 500);
   });
 
   socket.on('disconnect', (reason) => {
     console.warn('⚠️  ttfm-socket disconnected', reason);
+    roomStateRequested = false; // Reset flag on disconnect
   });
 
   socket.on('error', (err) => {
@@ -100,6 +142,7 @@ async function startSocket() {
   try {
     await socket.joinRoom(TOKEN, { roomUuid: ROOM_UUID });
     console.info('✅ Joined room:', ROOM_UUID);
+    
   } catch (err) {
     console.error('❌ joinRoom failed', err);
     // don't exit: allow relay to attempt reconnects via socket lib

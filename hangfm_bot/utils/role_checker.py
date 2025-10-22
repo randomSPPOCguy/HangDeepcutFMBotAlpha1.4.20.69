@@ -1,35 +1,37 @@
 # role_checker.py
 from typing import Dict, Set
 import logging
+from hangfm_bot.config import settings
 
 class RoleChecker:
     """
     Implements RBAC policy mapping user roles to permissions.
     """
     def __init__(self):
-        # Role-to-permission mapping
+        # Role-to-permission mapping (higher roles inherit lower role permissions)
         self.role_to_permissions: Dict[str, Set[str]] = {
-            "admin": {"ban", "kick", "add_dj", "remove_dj", "track", "queue", "discover", "ai", "debug", "adminhelp", "uptime"},
-            "moderator": {"kick", "add_dj", "remove_dj", "track", "queue", "discover", "ai", "adminhelp", "uptime"},
-            "coowner": {"add_dj", "remove_dj", "track", "queue", "discover", "ai", "grant", "adminhelp", "uptime"},
-            "dj": {"add_dj", "remove_dj", "queue", "discover", "ai", "uptime"},
-            "user": {"queue", "discover", "ai", "help", "stats", "commands", "uptime"},
+            "admin": {"ban", "kick", "add_dj", "remove_dj", "track", "queue", "discover", "ai", "debug", "adminhelp", "uptime", "help", "stats", "commands", "room", "gitlink", "ty"},
+            "moderator": {"kick", "add_dj", "remove_dj", "track", "queue", "discover", "adminhelp", "uptime", "help", "stats", "commands", "room", "gitlink", "ty"},
+            "coowner": {"add_dj", "remove_dj", "track", "queue", "discover", "ai", "grant", "adminhelp", "uptime", "help", "stats", "commands", "room", "gitlink", "ty"},
+            "dj": {"add_dj", "remove_dj", "queue", "discover", "uptime", "help", "stats", "commands", "room", "gitlink", "ty"},
+            "user": {"queue", "discover", "help", "stats", "commands", "uptime", "room", "gitlink", "ty"},
         }
         
-        # Hardcoded co-owner UUIDs (from original RoleChecker.js)
-        self.coowner_uuids = {
-            "62acab2b-8f82-4c48-9c1a-7b35adf54047",  # sumguy (owner)
-            "17093f8c-1315-49cc-b221-21210e672cd8",  # AlohaPJBear
-            "5540499c-cb2f-4b67-9981-1f19b3e97810",  # Co-owner
-            "5d2648eb-ef18-433c-9b78-5d19ed15ebda",  # Co-owner
-        }
+        # Load co-owner UUIDs from .env
+        self.coowner_uuids = set(
+            uuid.strip() 
+            for uuid in settings.coowner_uuids.split(',') 
+            if uuid.strip()
+        )
         
-        # Hardcoded moderator UUIDs
-        self.moderator_uuids = {
-            "64bbcbb7-d2a1-4e9d-9bed-5c84e189c929",  # Hollang616
-        }
+        # Load moderator UUIDs from .env
+        self.moderator_uuids = set(
+            uuid.strip() 
+            for uuid in settings.moderator_uuids.split(',') 
+            if uuid.strip()
+        )
         
-        logging.info(f"RoleChecker initialized with {len(self.coowner_uuids)} co-owners, {len(self.moderator_uuids)} moderators")
+        logging.debug(f"RoleChecker initialized with {len(self.coowner_uuids)} co-owners, {len(self.moderator_uuids)} moderators")
 
     def get_user_role(self, user_uuid: str) -> str:
         """Determine user role based on UUID"""

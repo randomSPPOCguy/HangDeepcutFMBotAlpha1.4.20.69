@@ -1,7 +1,6 @@
 # Connection managers
-from .ttfm_socket import TTFMSocket
 from .cometchat_manager import CometChatManager
-from .cometchat_ws import CometChatWebSocket
+from .cometchat_poller import CometChatPoller
 
-__all__ = ['TTFMSocket', 'CometChatManager', 'CometChatWebSocket']
+__all__ = ['CometChatManager', 'CometChatPoller']
 

@@ -29,7 +29,7 @@ class CometChatManager:
             "sdk": "javascript@3.0.10"
         }
         self.session = None
-        LOG.info(f"CometChat initialized: {self.base_url}")
+        LOG.debug(f"CometChat initialized: {self.base_url}")
     
     async def _get_session(self):
         """Get or create aiohttp session"""
@@ -70,7 +70,7 @@ class CometChatManager:
         }
         
         try:
-            LOG.info(f"Sending message to group {group_id}: {text[:50]}")
+            LOG.debug(f"Sending message to group {group_id}: {text[:50]}")
             LOG.debug(f"CometChat URL: {url}")
             LOG.debug(f"CometChat payload: {payload}")
             
@@ -79,7 +79,7 @@ class CometChatManager:
                 response_text = await response.text()
                 
                 if response.status == 200:
-                    LOG.info("✅ Message sent successfully")
+                    LOG.debug("✅ Message sent successfully")
                     return True
                 
                 # If not a member, try to add user then resend once

@@ -1,27 +1,20 @@
 # content_filter.py
 import logging
 
-try:
-    from better_profanity import profanity
-    PROFANITY_FILTER_AVAILABLE = True
-    profanity.load_censor_words()
-except ImportError:
-    PROFANITY_FILTER_AVAILABLE = False
-    logging.warning("better-profanity not available - content filtering disabled")
-
 class ContentFilter:
     def __init__(self, languages=('en',)):
-        self.enabled = PROFANITY_FILTER_AVAILABLE
-        if self.enabled:
-            logging.info("ContentFilter initialized with better-profanity")
-        else:
-            logging.warning("ContentFilter initialized WITHOUT profanity detection")
+        # Permissive filter - only block empty/invalid messages
+        # Let AI providers handle tone/content moderation naturally
+        self.enabled = True
+        logging.debug("ContentFilter initialized (permissive mode - swearing allowed)")
 
     def is_clean(self, text: str) -> bool:
-        """Check if text is clean (no profanity)"""
-        if not self.enabled or not text:
-            return True
-        return not profanity.contains_profanity(text)
+        """Check if text is valid (not empty/spam)"""
+        # Only reject empty or invalid messages
+        # Swear words are allowed - let AI handle tone
+        if not text or not isinstance(text, str):
+            return False
+        return len(text.strip()) > 0
 
     def censor(self, text: str) -> str:
         """Censor profanity in text"""

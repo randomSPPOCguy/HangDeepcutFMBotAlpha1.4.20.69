@@ -7,9 +7,10 @@ from hangfm_bot.utils.role_checker import RoleChecker
 class CommandHandler:
     def __init__(self, role_checker: RoleChecker):
         self.role_checker = role_checker
-        self.command_pattern = re.compile(r'^[/!](\w+)(?:\s+(.*))?$')
+        # Match commands: /cmd (public), /.cmd (admin), !cmd, .cmd
+        self.command_pattern = re.compile(r'^([/!]\.?|\./)(\w+)(?:\s+(.*))?$')
         self.handlers: Dict[str, Callable] = {}
-        logging.info("CommandHandler initialized")
+        logging.debug("CommandHandler initialized")
 
     def register(self, command: str, handler: Callable):
         """Register a command handler"""
@@ -17,12 +18,15 @@ class CommandHandler:
         logging.debug(f"Registered command: {command}")
 
     async def handle_message(self, user_uuid: str, message: str, user_nickname: str = "Unknown") -> Optional[str]:
-        """Parse and handle command from message"""
-        match = self.command_pattern.match(message)
+        """Parse and handle command from message (case-insensitive)"""
+        # Parse command with support for /.prefix
+        match = self.command_pattern.match(message.strip())
         if not match:
             return None
             
-        command, argline = match.group(1).lower(), match.group(2) or ""
+        prefix = match.group(1)  # /, /., !, or .
+        command = match.group(2).lower()  # command name
+        argline = match.group(3) or ""  # arguments
         user_role = self.role_checker.get_user_role(user_uuid)
         
         # Check permission
