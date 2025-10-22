@@ -1,11 +1,11 @@
 # Hang.fm Bot Collection
 
-🎵 **Collection of AI-Powered Music Bots for Turntable-style Music Platforms**
+🎵 **AI-Powered Music Bot Project - Modular Rebuild from Original JavaScript Code**
 
-This repository contains three music bots for different platforms and use cases:
-1. **Python Bot** (WIP) - Modern hybrid architecture with health monitoring
-2. **OG Hang.fm Bot** (Production-Ready) - Full-featured JavaScript bot for Hang.fm/tt.live
-3. **OG Deepcut Bot** (Production-Ready) - Specialized bot for Deepcut.live
+This repository contains a music bot project being rebuilt from scratch:
+1. **Python Bot** (WIP) - Modern modular rebuild with hybrid architecture
+2. **OG Hang.fm Bot** (Original) - Original JavaScript bot being refactored
+3. **OG Deepcut Bot** (Original) - Original Deepcut bot (future modular version planned)
 
 ---
 
@@ -59,11 +59,11 @@ cp env.example .env
 
 ---
 
-### 2. 📜 OG Hang.fm Bot (JavaScript - Production Ready)
+### 2. 📜 OG Hang.fm Bot (JavaScript - Original Code)
 
 **Platform:** Hang.fm (tt.live)
 
-**Full-Featured Production Bot:**
+**Original Bot Being Refactored:**
 - ✅ **Complete AI System**: OpenAI GPT, Google Gemini, Anthropic Claude support
 - ✅ **Advanced Music Discovery**: 
   - Discogs API integration for genre classification
@@ -111,11 +111,11 @@ cp hang-fm-config.env.example hang-fm-config.env
 
 ---
 
-### 3. 📜 OG Deepcut Bot (JavaScript - Production Ready)
+### 3. 📜 OG Deepcut Bot (JavaScript - Original Code)
 
 **Platform:** Deepcut.live
 
-**Specialized Bot for Deepcut's Platform:**
+**Original Deepcut Bot:**
 - ✅ **Multi-AI Provider**: OpenAI GPT, Google Gemini, HuggingFace support
 - ✅ **AI Provider Toggle**: Switch between providers on-the-fly
 - ✅ **Permission System**: Owner, admin, mod hierarchies
@@ -330,7 +330,7 @@ Original JavaScript implementations converted and enhanced with AI assistance.
 
 | Feature | Python Bot | OG Hang.fm | OG Deepcut |
 |---------|-----------|------------|------------|
-| **Status** | WIP | ✅ Production | ✅ Production |
+| **Status** | WIP - Modular Rebuild | Original Code | Original Code |
 | **Multi-AI** | ✅ 4 providers | ✅ 3 providers | ✅ 3 providers |
 | **Music Discovery** | 🔄 Planned | ✅ Full | ⚠️ Basic |
 | **DJ/Queue** | 🔄 Planned | ✅ Full | ✅ Full |
@@ -362,7 +362,7 @@ Original JavaScript implementations converted and enhanced with AI assistance.
 
 ---
 
-**Choose the bot that fits your needs:**
-- 🐍 **Python Bot** - Modern architecture, under development
-- 📜 **OG Hang.fm** - Full-featured, production-ready for Hang.fm
-- 📜 **OG Deepcut** - Specialized for Deepcut.live platform
+**Project Status:**
+- 🐍 **Python Bot** - Modern modular rebuild (active development)
+- 📜 **OG Hang.fm** - Original code being refactored into Python bot
+- 📜 **OG Deepcut** - Original code (modular version planned for future)
