@@ -1,0 +1,53 @@
+NOTICE
+
+This project includes code inspired by and built upon the following open-source projects:
+
+================================================================================
+
+Turntable-API
+Copyright (c) Alain Gilbert
+License: MIT
+Repository: https://github.com/alaingilbert/Turntable-API
+
+Used for: Core turntable.fm API patterns and Socket.IO event handling
+
+================================================================================
+
+mrRobotoV3
+Copyright (c) Jodrell2000
+Repository: https://github.com/jodrell2000/mrRobotoV3
+
+Used for: Bot architecture inspiration and command system patterns
+
+================================================================================
+
+This project also uses the following third-party libraries:
+
+Python Dependencies:
+- aiohttp - Async HTTP client (Apache 2.0)
+- python-socketio - Socket.IO client (MIT)
+- pydantic - Data validation (MIT)
+- aisuite - Unified AI interface (MIT)
+- google-generativeai - Gemini API (Apache 2.0)
+- openai - OpenAI API (Apache 2.0)
+- anthropic - Claude API (MIT)
+
+Node.js Dependencies (Relay):
+- ttfm-socket - Hang.fm Socket.IO library
+- express - Web framework (MIT)
+- axios - HTTP client (MIT)
+
+================================================================================
+
+AI Development Assistance:
+- Built with Claude (Anthropic) in Cursor IDE
+- AI-assisted development for architecture, debugging, and implementation
+
+================================================================================
+
+Community Credits:
+Special thanks to Jodrell, noiz, Kai the Husky, butter, and the entire
+music sharing community for inspiration and support.
+
+================================================================================
+
