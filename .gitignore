@@ -62,6 +62,7 @@ AI-HANDOFF-SUMMARY.md
 # Bot data
 uptime_state.json
 user_memory.json
+permissions.json
 bot-learned-artists.json
 bot-strikes.json
 song-stats.json

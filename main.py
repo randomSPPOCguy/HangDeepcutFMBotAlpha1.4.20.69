@@ -18,6 +18,7 @@ from hangfm_bot.relay_receiver import RelayReceiver
 from hangfm_bot.connection import CometChatManager, CometChatPoller
 from hangfm_bot import uptime as uptime_module
 from hangfm_bot.user_memory import UserMemory
+from hangfm_bot.permissions import PermissionsManager
 
 LOG = logging.getLogger("hangfm_bot")
 
@@ -56,7 +57,7 @@ async def process_queue_item(item, ai_manager, command_handler, content_filter, 
                 LOG.debug(f"Skipping system message: {text[:50]}")
                 return
             
-            LOG.info(f"💬 {sender_name}: {text[:50]}")
+            LOG.info(f"💬 {sender_name} ({sender_uuid}): {text[:50]}")
 
             if not content_filter.is_clean(text):
                 LOG.warning("🚫 Filtered message from %s: profanity", sender_name)
@@ -325,7 +326,8 @@ async def main():
     
     content_filter = ContentFilter()
     ai_manager = AIManager()
-    role_checker = RoleChecker()
+    permissions_manager = PermissionsManager()  # Load permissions from file
+    role_checker = RoleChecker(permissions_manager)
     genre_classifier = GenreClassifier()
     command_handler = CommandHandler(role_checker)
     message_queue = MessageQueue(maxsize=200)
@@ -383,23 +385,15 @@ async def main():
         
         commands_text = f"""✨ {settings.bot_name} Commands
 
-📊 Info & Stats
-  /stats - Your stats
+📊 Info
   /uptime - Bot uptime
-  /room - Room events
-  /commands - This list
-
-💜 Community
-  /gitlink - View bot on GitHub
-  /ty - Thank the community
 
 🤖 AI Chat
-  Say "bot" to chat with AI
-  /ai <message> - Direct AI chat"""
+  Say "bot" to chat with AI"""
         
         # Add admin notice for mods/co-owners
         if user_role in ("coowner", "moderator"):
-            commands_text += f"\n\n🛡️ Admin Access\n  Type /.adminhelp for {user_role} commands"
+            commands_text += f"\n\n👑 Admin\n  /.adminhelp - Show admin commands"
         
         return commands_text
     
@@ -494,14 +488,21 @@ async def main():
             admin_text += """👑 Co-Owner Commands
   /.ai <provider> - Switch AI provider
     (gemini, openai, claude, huggingface, off, auto)
-  /.grant <user> - Grant AI access
+  /.addcoowner <uuid> - Add co-owner
+  /.addmod <uuid> - Add moderator
+  /.removecoowner <uuid> - Remove co-owner
+  /.removemod <uuid> - Remove moderator
+  /.listperms - List all permissions
 
 """
         
         admin_text += """🔨 Moderator Commands
   /kick <user> - Kick user
   /track - Track info
-  /queue - Show queue"""
+  /queue - Show queue
+
+📋 Utility
+  /myuuid - Show your UUID"""
         
         return admin_text
     
@@ -526,28 +527,107 @@ Current Features:
     
     async def ty_cmd(user_uuid, argline, user_nickname):
         """Thank the community"""
-        return """💜 Special Thanks
+        return """Thank you to:
 
-Huge shoutout to the people who inspired this project:
-
-🎵 Jodrell - For the vibes and inspiration
-🎵 noiz - For pushing boundaries
-🎵 Kai the Husky - For the energy
-🎵 butter - For the support
-
-And to the entire music sharing community - this is for all of you! 🎶
-
-Thank you for making music social and keeping the turntable spirit alive. 💜"""
+Jodrell
+noiz
+Kai the Husky
+butter
+The music sharing community"""
+    
+    async def addcoowner_cmd(user_uuid, argline, user_nickname):
+        """Add co-owner UUID (co-owner only)"""
+        user_role = role_checker.get_user_role(user_uuid)
+        
+        if user_role != "coowner":
+            return f"🔑 Your UUID: {user_uuid}\n\nType /myuuid to see your UUID"
+        
+        if not argline or not argline.strip():
+            return f"Usage: /.addcoowner <uuid>"
+        
+        new_uuid = argline.strip()
+        
+        # Add to permissions manager (saves to file)
+        permissions_manager.add_coowner(new_uuid, "Unknown")
+        return f"✅ Added {new_uuid} as co-owner\n💾 Saved to permissions.json\n\n📝 They'll have access immediately!"
+    
+    async def addmod_cmd(user_uuid, argline, user_nickname):
+        """Add moderator UUID (co-owner only)"""
+        user_role = role_checker.get_user_role(user_uuid)
+        
+        if user_role != "coowner":
+            return "❌ Only co-owners can add moderators."
+        
+        if not argline or not argline.strip():
+            return f"Usage: /.addmod <uuid>"
+        
+        new_uuid = argline.strip()
+        
+        # Add to permissions manager (saves to file)
+        permissions_manager.add_moderator(new_uuid, "Unknown")
+        return f"✅ Added {new_uuid} as moderator\n💾 Saved to permissions.json\n\n📝 They'll have access immediately!"
+    
+    async def removecoowner_cmd(user_uuid, argline, user_nickname):
+        """Remove co-owner UUID (co-owner only)"""
+        user_role = role_checker.get_user_role(user_uuid)
+        
+        if user_role != "coowner":
+            return "❌ Only co-owners can remove co-owners."
+        
+        if not argline or not argline.strip():
+            return f"Usage: /.removecoowner <uuid>"
+        
+        remove_uuid = argline.strip()
+        
+        if not permissions_manager.is_coowner(remove_uuid):
+            return f"❌ {remove_uuid} is not a co-owner"
+        
+        permissions_manager.remove_coowner(remove_uuid)
+        return f"✅ Removed co-owner\n💾 Saved to permissions.json"
+    
+    async def removemod_cmd(user_uuid, argline, user_nickname):
+        """Remove moderator UUID (co-owner only)"""
+        user_role = role_checker.get_user_role(user_uuid)
+        
+        if user_role != "coowner":
+            return "❌ Only co-owners can remove moderators."
+        
+        if not argline or not argline.strip():
+            return f"Usage: /.removemod <uuid>"
+        
+        remove_uuid = argline.strip()
+        
+        if not permissions_manager.is_moderator(remove_uuid):
+            return f"❌ {remove_uuid} is not a moderator"
+        
+        permissions_manager.remove_moderator(remove_uuid)
+        return f"✅ Removed moderator\n💾 Saved to permissions.json"
+    
+    async def listperms_cmd(user_uuid, argline, user_nickname):
+        """List all permissions (co-owner only)"""
+        user_role = role_checker.get_user_role(user_uuid)
+        
+        if user_role != "coowner":
+            return "❌ Only co-owners can view permissions."
+        
+        return permissions_manager.list_all()
+    
+    async def myuuid_cmd(user_uuid, argline, user_nickname):
+        """Show your UUID"""
+        return f"🔑 Your UUID: {user_uuid}\n\n📝 Use /.addcoowner or /.addmod to grant permissions"
 
     command_handler.register("uptime", uptime_cmd)
-    command_handler.register("room", room_cmd)
-    command_handler.register("help", help_cmd)
     command_handler.register("commands", help_cmd)
-    command_handler.register("stats", help_cmd)
     command_handler.register("ai", ai_switch_cmd)
     command_handler.register("adminhelp", adminhelp_cmd)
     command_handler.register("gitlink", gitlink_cmd)
     command_handler.register("ty", ty_cmd)
+    command_handler.register("addcoowner", addcoowner_cmd)
+    command_handler.register("addmod", addmod_cmd)
+    command_handler.register("removecoowner", removecoowner_cmd)
+    command_handler.register("removemod", removemod_cmd)
+    command_handler.register("listperms", listperms_cmd)
+    command_handler.register("myuuid", myuuid_cmd)
 
     # Start relay receiver
     receiver = RelayReceiver(message_queue)
