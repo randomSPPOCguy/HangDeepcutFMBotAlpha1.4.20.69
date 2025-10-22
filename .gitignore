@@ -54,6 +54,11 @@ Thumbs.db
 *.log
 relay.log
 
+# AI handoff summaries (never commit)
+AI-HANDOFF-SUMMARY.md
+*-HANDOFF-*.md
+*-SUMMARY-FOR-*.md
+
 # Bot data
 uptime_state.json
 user_memory.json
