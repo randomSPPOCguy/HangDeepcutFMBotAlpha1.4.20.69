@@ -105,17 +105,10 @@ class CometChatSocketClient:
         while not self._stop.is_set():
             try:
                 LOG.info(f"CometChat: connecting {url}")
-                # websockets v12+: pass HTTP headers via additional_headers
-                headers = {
-                    "Origin": "https://hang.fm",
-                    "Pragma": "no-cache",
-                    "Cache-Control": "no-cache",
-                    "User-Agent": os.getenv("USER_AGENT", "hangfm-bot/python-websockets"),
-                }
+                # Simply connect; headers handled by WebSocket handshake
                 async with websockets.connect(
                     url,
                     ping_interval=None,
-                    additional_headers=headers,
                 ) as ws:
                     self._ws = ws
                     self._authed.clear()

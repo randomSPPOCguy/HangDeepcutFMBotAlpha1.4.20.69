@@ -83,9 +83,9 @@ class TTFMSocketClient:
 
         while not self._stop.is_set():
             try:
-                LOG.info("TT.fm: connecting Primus %s", url)
-                # websockets v12+: use additional_headers instead of extra_headers
-                async with ws_connect(url, additional_headers=headers) as ws:
+                LOG.info(f"TT.fm: connecting Primus {url[:80]}...")
+                # Simply connect; headers aren't directly supported in websockets library
+                async with ws_connect(url) as ws:
                     self._ws = ws
                     self._joined.clear()
 
