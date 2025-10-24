@@ -1,13 +1,4 @@
-#!/usr/bin/env python3
-"""
-CometChat WebSocket Client
-Uses the exact handshake format from browser capture.
-Direct WS connection to send messages.
-"""
-
-import asyncio
-import json
-import logging
+@@ -11,50 +11,53 @@ import logging
 import os
 import time
 from typing import Optional
@@ -33,6 +24,9 @@ class CometChatSocketClient:
         self.auth = settings.cometchat_auth
         self.room_uuid = settings.room_uuid
         self.region = settings.cometchat_region or "us"
+
+        # Match browser client expectations as closely as possible
+        self._origin = "https://hang.fm"
         
         LOG.info(f"CometChat ready: uid={self.uid}, room={self.room_uuid}")
     
@@ -58,23 +52,7 @@ class CometChatSocketClient:
                 pass
     
     async def wait_authed(self, timeout: float = 15.0) -> bool:
-        """Wait for authentication"""
-        try:
-            await asyncio.wait_for(self._authed.wait(), timeout=timeout)
-            return True
-        except asyncio.TimeoutError:
-            LOG.warning(f"Auth timeout ({timeout}s)")
-            return False
-    
-    async def send_group_text(self, text: str) -> bool:
-        """Send message to group via WebSocket"""
-        if not self._ws or not self._authed.is_set():
-            LOG.warning("CometChat WS not authed; cannot send message")
-            return False
-        
-        frame = {
-            "appId": self.appid,
-            "deviceId": "WEB-4_0_10-python-bot",
+@@ -78,102 +81,120 @@ class CometChatSocketClient:
             "sender": self.uid,
             "receiverType": "group",
             "receiver": self.room_uuid,
@@ -100,28 +78,27 @@ class CometChatSocketClient:
     
     async def _run(self):
         """Main WebSocket loop"""
-        url = f"wss://{self.appid}.websocket-{self.region}.cometchat.io/"
+        url = f"wss://{self.appid}.websocket-{self.region}.cometchat.io/v3.0/"
         
         while not self._stop.is_set():
             try:
                 LOG.info(f"CometChat: connecting {url}")
-                # Simply connect; headers handled by WebSocket handshake
-                async with websockets.connect(
-                    url,
-                    ping_interval=None,
-                ) as ws:
+                # Generate a per-connection device identifier like browser does
+                device_id = f"WEB-4_0_10-{self.uid}-{int(time.time() * 1000)}"
+
+                async with websockets.connect(url, ping_interval=None) as ws:
                     self._ws = ws
                     self._authed.clear()
                     
                     # Send auth frame (exact format from browser)
                     auth_frame = {
                         "appId": self.appid,
-                        "deviceId": "WEB-4_0_10-python-bot",
+                        "deviceId": device_id,
                         "type": "auth",
                         "sender": self.uid,
                         "body": {
                             "auth": self.auth,
-                            "deviceId": "WEB-4_0_10-python-bot",
+                            "deviceId": device_id,
                             "presenceSubscription": "ALL_USERS",
                             "params": {
                                 "appInfo": {
@@ -131,7 +108,7 @@ class CometChatSocketClient:
                                     "uts": int(time.time() * 1000)
                                 },
                                 "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                                "deviceId": "WEB-4_0_10-python-bot",
+                                "deviceId": device_id,
                                 "platform": "javascript"
                             }
                         }
@@ -157,9 +134,15 @@ class CometChatSocketClient:
                                     msg_type = data.get("type")
                                     
                                     if msg_type == "auth":
-                                        status = data.get("body", {}).get("status")
-                                        LOG.info(f"CometChat: auth response {status}")
-                                        self._authed.set()
+                                        body = data.get("body", {})
+                                        status = body.get("status")
+                                        if status and status.upper() == "SUCCESS":
+                                            LOG.info("CometChat: auth response SUCCESS")
+                                            self._authed.set()
+                                        else:
+                                            LOG.error(f"CometChat: auth failed: {body}")
+                                            await ws.close()
+                                            break
                                 except json.JSONDecodeError:
                                     LOG.debug(f"CometChat: non-JSON: {msg[:100]}")
                             else:
